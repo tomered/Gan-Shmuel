@@ -23,7 +23,7 @@ services:
       - "3306:3306"
     volumes:
       - gsdata:/var/lib/mysql
-      # - ./db/weightdb.sql:/docker-entrypoint-initdb.d/weightdb.sql
+      - ./db/weightdb.sql:/docker-entrypoint-initdb.d/weightdb.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
