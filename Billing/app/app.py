@@ -23,6 +23,26 @@ def get_db_connection():
 
 app = Flask(__name__)
 
+#GET /health - Health check for app to db 
+@app.route('/health',methods=["GET"])
+def health():
+    # Connect to database
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+    
+        # Execute "SELECT 1" on the mysqlDB 
+        cursor.execute("SELECT 1")
+        
+        cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return "OK", 200
+    # Error handling for connectivity is done in get_db_connection.
+    except Exception as e:
+        return "Failure", 500
+
 @app.route('/provider', methods=['POST'])
 def add_provider():
     try:
