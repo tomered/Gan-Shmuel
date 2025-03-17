@@ -63,7 +63,8 @@ def ci_pipeline(payload):
                            f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
 
             app.logger.info("Deployment complete.")
-            subprocess.run("docker", "compose", "down")
+            subprocess.run("docker", "compose", "-f",
+                           f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down")
         else:
             app.logger.info("Tests failed.")
             app.logger.info("Test Output:")
