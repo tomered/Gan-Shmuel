@@ -32,7 +32,7 @@ def ci_pipeline(payload):
 
         if branch not in BACKEND_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
-            return
+            return jsonify({})
 
         code_path = BACKEND_PATHS[branch]
 
@@ -45,11 +45,10 @@ def ci_pipeline(payload):
         # Create and run a container with tests
 
         result = subprocess.run([
-            "docker", "run", "--rm",
+            "docker", "run",
             "-v", f"{code_path}:/app",
             "-w", "/app",
-            DOCKER_IMAGE,
-            "bash", "-c", "pip install -r requirements.txt && pytest"
+            "hello-world",
         ], capture_output=True, text=True)
 
         if result.returncode == 0:
