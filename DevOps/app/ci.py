@@ -3,6 +3,7 @@ import subprocess
 import threading
 import json
 import logging
+import time
 import os
 
 app = Flask(__name__)
@@ -63,6 +64,7 @@ def ci_pipeline(payload):
                            f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
 
             app.logger.info("Deployment complete.")
+            time.sleep(5)
             subprocess.run("docker", "compose", "-f",
                            f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down")
         else:
