@@ -11,12 +11,13 @@ logging.basicConfig(level=logging.DEBUG)
 
 # CONFIG
 BACKEND_PATHS = {
-    "billing": "/Billing",  # path to billing code
-    "weight": "/Weight",     # path to weight code
+    "billing": "./Billing",  # path to billing code
+    "weight": "./Weight",     # path to weight code
     "main": ""
 }
 
 DOCKER_IMAGE = "python:3.12.7"  # base image used to test inside containers
+
 
 def ci_pipeline(payload):
     # Get info about user, branch and commit
@@ -27,7 +28,8 @@ def ci_pipeline(payload):
         commit_hash = data["after"][:7]
         pusher_name = data["pusher"]["name"]
         pusher_email = data["pusher"]["email"]
-        app.logger.info(f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
+        app.logger.info(
+            f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
         app.logger.info(f"\nCI Triggered")
 
         if branch.lower() not in BACKEND_PATHS:
@@ -38,7 +40,8 @@ def ci_pipeline(payload):
 
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], cwd=code_path, check=True)
-        subprocess.run(["git", "pull", "origin", branch], cwd=code_path, check=True)
+        subprocess.run(["git", "pull", "origin", branch],
+                       cwd=code_path, check=True)
 
         app.logger.info(f"Running tests in container for '{branch}'...")
 
@@ -46,7 +49,7 @@ def ci_pipeline(payload):
 
         result = subprocess.run([
             "docker", "run",
-            "-v", f"{code_path}:/app",
+            "-v", f"/Gan-Shmuel/{branch}:/app",
             "-w", "/app",
             "hello-world",
         ], capture_output=True, text=True)
@@ -54,8 +57,10 @@ def ci_pipeline(payload):
         if result.returncode == 0:
             app.logger.info("Tests passed. Building and deploying app...")
 
-            subprocess.run(["docker-compose", "-f", f"{code_path}/docker-compose.yml", "build"], check=True)
-            subprocess.run(["docker-compose", "-f", f"{code_path}/docker-compose.yml", "up", "-d"], check=True)
+            # subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml",
+            #                "-f", f"{code_path}/docker-compose.override.prod.yaml" "build"], check=True)
+            subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
+                           f"./DevOps//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True)
 
             app.logger.info("Deployment complete.")
         else:
@@ -63,10 +68,12 @@ def ci_pipeline(payload):
             app.logger.info("Test Output:")
             app.logger.info(result.stdout)
             app.logger.info(result.stderr)
-            app.logger.info(f"Notify {pusher_name} <{pusher_email}>: Tests failed.")
+            app.logger.info(
+                f"Notify {pusher_name} <{pusher_email}>: Tests failed.")
 
     except Exception as e:
         app.logger.info(f"CI pipeline error: {e}")
+
 
 @app.route("/trigger", methods=["POST"])
 def webhook():
@@ -78,6 +85,7 @@ def webhook():
         app.logger.info("testing trigger")
         return jsonify({"status": "CI started"}), 202
     return jsonify({"status": "Ignored"}), 200
+
 
 @app.route("/health")
 def health():

@@ -2,10 +2,10 @@ services:
   ci:
     container_name: my-ci
     build: ./app
-    working_dir: /Gan-Shmuel
+    # working_dir: /Gan-Shmuel
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ~/Gan-Shmuel:/Gan-Shmuel
+      # - ~/Gan-Shmuel:/Gan-Shmuel
     ports:
       - 8080:5000
     networks:
