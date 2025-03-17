@@ -1,8 +1,10 @@
 .DS_Store
-
+*.venv
 
 # DEVOPS
 
 # BILLING
+billing/app/app-env/bin
+
 
 # WEIGHT
