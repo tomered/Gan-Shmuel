@@ -32,7 +32,7 @@ def ci_pipeline(payload):
 
         if branch not in BACKEND_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
-            return jsonify({})
+            return jsonify({"status": "No ci setup"}), 400
 
         code_path = BACKEND_PATHS[branch]
 
