@@ -24,7 +24,8 @@ def ci_pipeline(payload):
         commit_hash = data["after"][:7]
         pusher_name = data["pusher"]["name"]
         pusher_email = data["pusher"]["email"]
-        print(f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
+        with open('test2.txt', 'a') as f:
+            f.write(f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
         print(f"\nCI Triggered")
 
         if branch not in BACKEND_PATHS:
@@ -73,7 +74,8 @@ def webhook():
     if event == "push":
         payload = request.get_data(as_text=True)
         threading.Thread(target=ci_pipeline, args=(payload,)).start()
-        print('test')
+        with open('test.txt', 'a') as f:
+            f.write('test')
         return jsonify({"status": "CI started"}), 202
     return jsonify({"status": "Ignored"}), 200
 
