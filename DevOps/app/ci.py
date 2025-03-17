@@ -65,8 +65,8 @@ def ci_pipeline(payload):
 
             app.logger.info("Deployment complete.")
             time.sleep(5)
-            subprocess.run("docker", "compose", "-f",
-                           f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down")
+            subprocess.run(["docker", "compose", "-f",
+                           f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down"])
         else:
             app.logger.info("Tests failed.")
             app.logger.info("Test Output:")
