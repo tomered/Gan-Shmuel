@@ -4,7 +4,7 @@ services:
     build: ./app
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ~/scripts/Development/Gan-Shmuel:/Gan-Shmuel
+      - ~/Gan-Shmuel:/Gan-Shmuel
     ports:
       - 8080:5000
     networks:
