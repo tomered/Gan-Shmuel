@@ -16,7 +16,6 @@ BACKEND_PATHS = {
 DOCKER_IMAGE = "python:3.12.7"  # base image used to test inside containers
 
 def ci_pipeline(payload):
-
     # Get info about user, branch and commit
     try:
         data = json.loads(payload)
@@ -74,6 +73,7 @@ def webhook():
     if event == "push":
         payload = request.get_data(as_text=True)
         threading.Thread(target=ci_pipeline, args=(payload,)).start()
+        print('test')
         return jsonify({"status": "CI started"}), 202
     return jsonify({"status": "Ignored"}), 200
 
