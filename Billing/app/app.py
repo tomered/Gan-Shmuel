@@ -28,7 +28,7 @@ app = Flask(__name__)
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
-    app.run(host='0.0.0.0', debug=True, port=4000)
+    app.run(host='0.0.0.0', debug=True, port=5000)
 
 
 

@@ -11,10 +11,8 @@ services:
       MYSQL_DATABASE: billdb
       MYSQL_USER: billing-user
       MYSQL_PASSWORD: secret
-
     networks:
       - billing-network
-
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -28,11 +26,7 @@ services:
     ports: 
       - "4000:5000"
     environment:
-      # - SQLALCHEMY_DATABASE_URI=mysql+pymysql://root:secret@db:3306/billdb
-      # - DATABASE_URL=mysql+pymysql://root:secret@127.0.0.1:3306/billdb
-      # FLASK_ENV: development  
         DB_HOST: billing-db
-
     networks:
       - billing-network
     volumes:
