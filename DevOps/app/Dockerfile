@@ -23,9 +23,7 @@ RUN git clone https://github.com/tomered/Gan-Shmuel.git /Gan-Shmuel
 #     rm -rf /var/lib/apt/lists/*
 
 
-# RUN git clone https://github.com/tomered/Gan-Shmuel.git /Gan-Shmuel
-
-COPY ci.py .
+COPY ci.py docker-compose.override.prod.yaml ./
 
 WORKDIR /Gan-Shmuel
 

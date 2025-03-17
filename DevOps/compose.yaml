@@ -6,6 +6,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # - ~/Gan-Shmuel:/Gan-Shmuel
+    # command: sh -c "git clone https://github.com/tomered/Gan-Shmuel.git /Gan-Shmuel && flask run"
     ports:
       - 8080:5000
     networks:

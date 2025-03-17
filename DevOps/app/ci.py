@@ -48,7 +48,7 @@ def ci_pipeline(payload):
         # Create and run a container with tests
 
         result = subprocess.run([
-            "docker", "run",
+            "docker", "run", "--rm",
             "-v", f"/Gan-Shmuel/{branch}:/app",
             "-w", "/app",
             "hello-world",
@@ -60,9 +60,10 @@ def ci_pipeline(payload):
             # subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml",
             #                "-f", f"{code_path}/docker-compose.override.prod.yaml" "build"], check=True)
             subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
-                           f"./DevOps//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True)
+                           f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
 
             app.logger.info("Deployment complete.")
+            subprocess.run("docker", "compose", "down")
         else:
             app.logger.info("Tests failed.")
             app.logger.info("Test Output:")
