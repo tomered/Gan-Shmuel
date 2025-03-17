@@ -25,11 +25,6 @@ def get_db_connection():
 
 app = Flask(__name__)
 
-
-#@app.route("/", methods=["GET"])
-#def test():
-#     return "hello"
-
 # Docker container health check 
 @app.route('/health',methods=["GET"])
 def health():
