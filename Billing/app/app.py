@@ -26,6 +26,10 @@ def get_db_connection():
 app = Flask(__name__)
 
 
+# @app.route("/", methods=["GET"])
+# def test():
+#     return "hello"
+
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
     app.run(host='0.0.0.0', debug=True, port=5000)
