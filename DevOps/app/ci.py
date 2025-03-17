@@ -30,7 +30,7 @@ def ci_pipeline(payload):
         app.logger.info(f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
         app.logger.info(f"\nCI Triggered")
 
-        if branch not in BACKEND_PATHS:
+        if branch.lower() not in BACKEND_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
             return jsonify({"status": "No ci setup"}), 400
 
