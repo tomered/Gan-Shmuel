@@ -26,9 +26,14 @@ def get_db_connection():
 app = Flask(__name__)
 
 
-# @app.route("/", methods=["GET"])
-# def test():
+#@app.route("/", methods=["GET"])
+#def test():
 #     return "hello"
+
+# Docker container health check 
+@app.route('/health',methods=["GET"])
+def health():
+    return "Health_OK!", 200
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
