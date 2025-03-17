@@ -6,12 +6,12 @@
 # BILLING
 
 # WEIGHT
-./Weight/app/bin/
-./Weight/app/include/
-./Weight/app/lib/
-./Weight/app/lib64/
+./Weight/app/bin/*
+./Weight/app/include/*
+./Weight/app/lib/*
+./Weight/app/lib64/*
 ./Weight/app/pyvenv.cfg
-./Weight/db/backup/
+./Weight/db/backup/*
 *.pyc
 __pycache__/
 *.pyo
