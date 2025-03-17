@@ -2,9 +2,12 @@ from flask import Flask, request, jsonify
 import subprocess
 import threading
 import json
+import logging
 import os
 
 app = Flask(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
 
 # CONFIG
 BACKEND_PATHS = {
@@ -24,21 +27,20 @@ def ci_pipeline(payload):
         commit_hash = data["after"][:7]
         pusher_name = data["pusher"]["name"]
         pusher_email = data["pusher"]["email"]
-        with open('test2.txt', 'a') as f:
-            f.write(f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
-        print(f"\nCI Triggered")
+        app.logger.info(f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
+        app.logger.info(f"\nCI Triggered")
 
         if branch not in BACKEND_PATHS:
-            print(f"No CI setup for branch: {branch}")
+            app.logger.info(f"No CI setup for branch: {branch}")
             return
 
         code_path = BACKEND_PATHS[branch]
 
-        print(f"Pulling latest code for '{branch}'...")
+        app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], cwd=code_path, check=True)
         subprocess.run(["git", "pull", "origin", branch], cwd=code_path, check=True)
 
-        print(f"Running tests in container for '{branch}'...")
+        app.logger.info(f"Running tests in container for '{branch}'...")
 
         # Create and run a container with tests
 
@@ -51,21 +53,21 @@ def ci_pipeline(payload):
         ], capture_output=True, text=True)
 
         if result.returncode == 0:
-            print("Tests passed. Building and deploying app...")
+            app.logger.info("Tests passed. Building and deploying app...")
 
             subprocess.run(["docker-compose", "-f", f"{code_path}/docker-compose.yml", "build"], check=True)
             subprocess.run(["docker-compose", "-f", f"{code_path}/docker-compose.yml", "up", "-d"], check=True)
 
-            print("Deployment complete.")
+            app.logger.info("Deployment complete.")
         else:
-            print("Tests failed.")
-            print("Test Output:")
-            print(result.stdout)
-            print(result.stderr)
-            print(f"Notify {pusher_name} <{pusher_email}>: Tests failed.")
+            app.logger.info("Tests failed.")
+            app.logger.info("Test Output:")
+            app.logger.info(result.stdout)
+            app.logger.info(result.stderr)
+            app.logger.info(f"Notify {pusher_name} <{pusher_email}>: Tests failed.")
 
     except Exception as e:
-        print(f"CI pipeline error: {e}")
+        app.logger.info(f"CI pipeline error: {e}")
 
 @app.route("/trigger", methods=["POST"])
 def webhook():
@@ -74,8 +76,7 @@ def webhook():
     if event == "push":
         payload = request.get_data(as_text=True)
         threading.Thread(target=ci_pipeline, args=(payload,)).start()
-        with open('test.txt', 'a') as f:
-            f.write('test')
+        app.logger.info("testing trigger")
         return jsonify({"status": "CI started"}), 202
     return jsonify({"status": "Ignored"}), 200
 
