@@ -25,10 +25,26 @@ def get_db_connection():
 
 app = Flask(__name__)
 
-# Docker container health check 
+#GET /health - Health check for app to db 
 @app.route('/health',methods=["GET"])
 def health():
-    return "Health_OK!", 200
+    # Connect to database
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+    
+        # Execute "SELECT 1" on the mysqlDB 
+        cursor.execute("SELECT 1")
+        
+        cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return "OK", 200
+    # Error handling for connectivity is done in get_db_connection.
+    except Exception as e:
+        return "Failure", 500
+
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
