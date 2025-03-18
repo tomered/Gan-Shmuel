@@ -20,6 +20,11 @@ BACKEND_PATHS = {
 DOCKER_IMAGE = "python:3.12.7"  # base image used to test inside containers
 
 
+def run_process(cmds: list):
+    result = subprocess.run(cmds, capture_output=True)
+
+
+
 def ci_pipeline(payload):
     # Get info about user, branch and commit
     try:
@@ -48,6 +53,7 @@ def ci_pipeline(payload):
 
         # Create and run a container with tests
 
+        # Change to run tests in future
         result = subprocess.run([
             "docker", "run", "--rm",
             "-v", f"/Gan-Shmuel/{branch}:/app",
@@ -56,17 +62,18 @@ def ci_pipeline(payload):
         ], capture_output=True, text=True)
 
         if result.returncode == 0:
-            app.logger.info("Tests passed. Building and deploying app...")
+            if branch == 'main':
+                app.logger.info("Tests passed. Building and deploying app...")
+                subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
+                               f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
 
-            # subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml",
-            #                "-f", f"{code_path}/docker-compose.override.prod.yaml" "build"], check=True)
-            subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
-                           f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
-
-            app.logger.info("Deployment complete.")
+                app.logger.info("Deployment complete.")
             time.sleep(5)
             subprocess.run(["docker", "compose", "-f",
                            f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down"])
+
+            # implement mailing
+
         else:
             app.logger.info("Tests failed.")
             app.logger.info("Test Output:")

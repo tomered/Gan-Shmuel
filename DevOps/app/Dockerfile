@@ -1,6 +1,7 @@
 FROM python:3.12.7-slim
 
 RUN apt update && apt install -y --no-install-recommends \
+    apt-utils \
     curl \
     ca-certificates \
     git \
