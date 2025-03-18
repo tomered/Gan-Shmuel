@@ -17,7 +17,27 @@ BACKEND_PATHS = {
     "main": "."
 }
 
-DOCKER_IMAGE = "python:3.12.7"  # base image used to test inside containers
+PROD_YAML_PATHS = {
+    'billing': './Billing/docker-compose.prod.yaml',
+    'weight': './Weight/docker-compose.prod.yaml',
+}
+
+
+def takedown_prod():
+    app.logger.info("Taking down old prod")
+    subprocess.run(['docker', 'compose', '-f',
+                   PROD_YAML_PATHS['billing'], 'down'])
+    subprocess.run(['docker', 'compose', '-f',
+                   PROD_YAML_PATHS['weight'], 'down'])
+
+
+def deploy_prod():
+    app.logger.info("Tests passed. Deploying to prod...")
+    subprocess.run(["docker", "compose", "-f",
+                   PROD_YAML_PATHS['billing'], "up", "-d", "--build"], check=True, capture_output=True)
+    subprocess.run(["docker", "compose", "-f",
+                   PROD_YAML_PATHS['weight'], "up", "-d", "--build"], check=True, capture_output=True)
+    app.logger.info("Deployment complete.")
 
 
 def ci_pipeline(payload):
@@ -57,12 +77,9 @@ def ci_pipeline(payload):
 
         if result.returncode == 0:
             if branch.lower() == 'main':
-                app.logger.info("Tests passed. Building and deploying app...")
-                subprocess.run(['docker', 'compose', '-f',
-                               f"{code_path}/docker-compose.prod.yaml" 'down'])
-                subprocess.run(["docker", "compose", "-f",
-                               f"{code_path}/docker-compose.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
-                app.logger.info("Deployment complete.")
+                if (os.path.isfile('./Billing/docker-compose.prod.yaml') and os.path.isfile()):
+                    takedown_prod()
+                    deploy_prod()
 
             # implement maling
 
