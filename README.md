@@ -1,4 +1,1 @@
 # Gan-Shmuel
-
-
-
