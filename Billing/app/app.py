@@ -11,7 +11,7 @@ def get_db_connection():
 
     try:
         conn = mysql.connector.connect(
-            host="db",
+            host="billing-db",
             user="root",
             password="secret",
             database="billdb",
