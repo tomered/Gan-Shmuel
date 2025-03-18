@@ -1,4 +1,5 @@
-import os, csv
+import os
+import csv
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
@@ -81,46 +82,46 @@ def add_provider():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    
+
 @app.route('/provider/<int:id>', methods=['PUT'])
 def update_provider(id):
     try:
         data = request.get_json()
         if not data or 'name' not in data:
             return jsonify({'error': 'Name is required'}), 400
-        
+
         # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Check if provider exists
         check_query = "SELECT id FROM Provider WHERE id = %s"
         cursor.execute(check_query, (id,))
         existing = cursor.fetchone()
-        
+
         if not existing:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Provider not found'}), 404
-        
+
         # Check if the new name already exists with a different ID
         check_name_query = "SELECT id FROM Provider WHERE name = %s AND id != %s"
         cursor.execute(check_name_query, (data['name'], id))
         name_exists = cursor.fetchone()
-        
+
         if name_exists:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Another provider with this name already exists'}), 409
-        
+
         # Update the provider
         update_query = "UPDATE Provider SET name = %s WHERE id = %s"
         cursor.execute(update_query, (data['name'], id))
-        
+
         conn.commit()
         cursor.close()
         conn.close()
-        
+
         return jsonify({'id': str(id), 'name': data['name']}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -131,16 +132,17 @@ def add_rate():
     try:
         data = request.get_json()
         filename = data["filename"]
+        with open('Giants.csv', mode='r')as file:
+            csvReader = csv.reader(file)
+            next(csvReader, None)
+            for lines in csvReader:
+                print(lines)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     return filename
-        
-    
+
+
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
     app.run(host='0.0.0.0', debug=True, port=5000)
-
-
-
-
-
