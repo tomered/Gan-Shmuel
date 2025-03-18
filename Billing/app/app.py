@@ -145,8 +145,14 @@ def add_rate():
 
         for rate in file_data:
             row_dict = dict(zip(data_frame.columns, rate))
+
+            if(row_dict["Scope"] != "All"):
+                cursor.execute("SELECT * FROM Provider WHERE id=%s", (row_dict["Scope"],))
+                existing_provider = cursor.fetchone()
+                if not existing_provider:
+                    raise LookupError(f"Provider with ID {row_dict["Scope"]} does not exist")
             
-            cursor.execute("SELECT * FROM Rates WHERE product_id=%s", (row_dict["Product"],))
+            cursor.execute("SELECT * FROM Rates WHERE product_id=%s AND scope=%s", (row_dict["Product"], row_dict["Scope"]))
             existing_product = cursor.fetchone()
 
             if existing_product:
@@ -157,6 +163,9 @@ def add_rate():
         conn.commit()
         cursor.close()
         conn.close()
+
+    except LookupError as e :
+        return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
     except Exception as e:
