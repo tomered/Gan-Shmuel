@@ -10,7 +10,7 @@ services:
     networks:
       - gsnetwork
     ports:
-      - "5000:5000"
+      - "8082:5000"
 
 
 
@@ -19,8 +19,6 @@ services:
     container_name: db_gs
     networks:
       - gsnetwork
-    ports:
-      - "3306:3306"
     volumes:
       - gsdata:/var/lib/mysql
       # - ./db/weightdb.sql:/docker-entrypoint-initdb.d/weightdb.sql

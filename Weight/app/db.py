@@ -16,20 +16,17 @@ def container_data(containers):
     cursor = mysql.cursor(dictionary=True)
 
     # Initialize total weight
-    result = 0
-
-    for container in containers:
+    sum = 0
+    converted_list = containers.split(",")
+    for container in converted_list:
         # Fetch container weight from the database
-        cursor.execute("""SELECT SUM(weight) FROM containers_registered WHERE container_id = %s""", (container,))
+        cursor.execute("SELECT weight FROM containers_registered WHERE container_id = %s", (container, ))
         result = cursor.fetchone()
-
-        if result and 'weight' in result:
-            return result
-
+        sum+=result["weight"]
 
     cursor.close()
     mysql.close()
 
-    return result
+    return sum
 
 
