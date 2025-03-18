@@ -57,18 +57,15 @@ def ci_pipeline(payload):
         ], capture_output=True, text=True)
 
         if result.returncode == 0:
-            if branch == 'main':
+            if branch.lower() == 'main':
                 app.logger.info("Tests passed. Building and deploying app...")
-
-                subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
-                               f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
-
+                subprocess.run(['docker', 'compose', '-f',
+                               f"{code_path}/docker-compose.prod.yaml" 'down'])
+                subprocess.run(["docker", "compose", "-f",
+                               f"{code_path}/docker-compose.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
                 app.logger.info("Deployment complete.")
-            time.sleep(5)
-            subprocess.run(["docker", "compose", "-f",
-                           f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down"])
 
-            # implement mailing
+            # implement maling
 
         else:
             app.logger.info("Tests failed.")
