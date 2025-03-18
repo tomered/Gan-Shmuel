@@ -3,12 +3,10 @@
 services:
   web_weight:
     depends_on:
-      db:
+      db_weight:
           condition: service_healthy
     build: ./app/
     container_name: webapp_gs
-    volumes:
-      -./app/:./
     networks:
       - gsnetwork
     ports:
@@ -22,8 +20,7 @@ services:
     networks:
       - gsnetwork
     volumes:
-      - gsdata:/var/lib/mysql
-      # - ./db/weightdb.sql:/docker-entrypoint-initdb.d/weightdb.sql
+      - gsdata:/var/lib/mysql ##note -this is named volume!!
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -34,7 +31,4 @@ networks:
   gsnetwork:
 
 volumes:
-  gsdata:
-    external: true
-
-  ./app/: {}
+  gsdata: {}
