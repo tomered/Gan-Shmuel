@@ -127,31 +127,44 @@ def update_provider(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@app.route('/truck/<id>',methods=['GET'])
+@app.route('/truck/<id>', methods=['GET'])
 def get_truck_sessions(id):
     t1 = request.args.get('from')
     t2 = request.args.get('to')
-
+    
     if t1 is None:
         now = datetime.datetime.now()
         t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
-
+    else:
+        try:
+            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
+        except ValueError:
+            return jsonify({"error": "Invalid 'from' date format. Use yyyymmddhhmmss"}), 400
+            
     if t2 is None:
         t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
+        except ValueError:
+            return jsonify({"error": "Invalid 'to' date format. Use yyyymmddhhmmss"}), 400
+    
+    if t1 > t2:
+        return jsonify({"error": "Start time must be before end time"}), 400
 
-    api=f"http://idontknow:8081/item/{id}?from={t1}&to={t2}"
+    if not id.strip():
+        return jsonify({"error": "Truck ID cannot be empty"}), 400
+    
+    api = f"http://idontknow:8082/item/{id}?from={t1}&to={t2}"
+    
+    response = requests.get(api)
 
-    truck_info = {
-        "id": "id",
-        "tara": "tara",
-        "sessions": "sessions"
-    }
-
-    try:
-        response = requests.get(api, params=truck_info)
+    if response.status_code == 200:
         return response.json(), 200
-    except:
-        return jsonify({"error": "truck is non-existent"}), 404
+    elif response.status_code == 404:
+        return jsonify({"error": f"Truck with ID {id} not found"}), 404
+    else:
+        return jsonify({"error": f"External API error: {response.status_code}"}), response.status_code
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
