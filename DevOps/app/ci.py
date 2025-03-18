@@ -59,7 +59,7 @@ def ci_pipeline(payload):
 
         if branch.lower() not in PROD_YAML_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
-            return jsonify({"status": "No ci setup"}), 400
+            # return jsonify({"status": "No ci setup"}), 400
 
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], check=True)
@@ -77,11 +77,15 @@ def ci_pipeline(payload):
             "hello-world",
         ], capture_output=True, text=True)
 
+        app.logger.info("Finished running tests")
+
         if result.returncode == 0:
             if branch.lower() == 'main':
                 if (os.path.isfile(PROD_YAML_PATHS["billing"]) and os.path.isfile(PROD_YAML_PATHS["weight"])):
                     takedown_prod()
                     deploy_prod()
+            else:
+                app.logger.info("Branch is not main. Not deploying app")
 
             # implement maling
 
@@ -101,6 +105,7 @@ def ci_pipeline(payload):
 def webhook():
     # Webhook endpoint to handle GitHub push events
     event = request.headers.get("X-GitHub-Event", "")
+    # add payload action == closed and header github event to pull_request
     if event == "push":
         payload = request.get_data(as_text=True)
         threading.Thread(target=ci_pipeline, args=(payload,)).start()
