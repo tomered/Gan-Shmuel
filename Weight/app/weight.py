@@ -149,6 +149,8 @@ def info_insert():
     force = data.get('force', False)  # Default is False
     produce = data.get('produce', 'na')  # Default to "na"
     current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # return {"container_weight": db.container_data(containers)}
+
 
 
     # Validate required fields
@@ -158,51 +160,75 @@ def info_insert():
     mysql = db.connect_db()  # Get DB connection
     cursor = mysql.cursor(dictionary=True)
     #set up the last session id to maintaine continues
-    # cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
     def fetch_session_id():
         mysql = db.connect_db()  # Get DB connection
         cursor = mysql.cursor(dictionary=True)
-        # cursor.execute("SELECT MAX(session) FROM transactions LIMIT 1")  # Adjust table and column names as needed
+
 
         # set up the last session id to maintaine continues
         cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
         result = cursor.fetchone()
         if result is None:
             return 0
-        return result
+        return result["session"]
 
 
-    # Direction: "in" DONE!!!!!!
+    # Direction: "in" DONE!!!
     if direction == "in":
         # Check if there's an "in" session for the same truck
         cursor.execute(""" SELECT * FROM transactions WHERE truck = %s AND direction = 'in' AND session NOT IN 
                        (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck, ))
         existing_in = cursor.fetchone()
 
-
         if existing_in and not force:
             return {"error": "An active 'in' session already exists. Use force=true to overwrite."}
         # Insert a new "in" session
         session_id= fetch_session_id()
+        session_id +=1
         cursor.execute("INSERT INTO transactions (session, truck, direction, bruto, datetime, containers, produce) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, weight, current_date, containers, produce))
         mysql.commit()
         return {"session": session_id, "truck": truck, "bruto": weight}, 200
 
+
+
+
+
+
+
+
+
+
+
+
+
     # Direction: "out"
     elif direction == "out":
         # Get the latest "in" session for this truck
         cursor.execute(""" SELECT * FROM transactions WHERE truck = %s AND direction = 'in' AND session NOT IN 
-                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck, session_id))
-        last_in = cursor.fetchall()
+                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck,))
+        last_in = cursor.fetchone()
+        # return last_in
 
         if not last_in:
             return {"error": "No 'in' session found for this truck. Cannot proceed with 'out'."}
 
         # Calculate neto (Fruits)
-    
-        truck_tara = weight
-        net_weight = (int(last_in.get("bruto", 0)) - int(truck_tara) - int(db.container_data(containers)))
+        # bruto_weight = int(last_in.get("bruto", 0)) if last_in else 0
+        session_id=last_in.get("session")
+            # Calculate neto (Fruits)
+        try:
+            bruto_weight = last_in["bruto"] # Get bruto from last_in
+            truck_tara = int(weight)  # Current truck weight
+            container_weight = db.container_data(containers)  # Weight of containers
+            net_weight = bruto_weight - truck_tara - container_weight
+            
+        except Exception as e:
+            return {"error": f"Failed to calculate net weight: {e}"}, 500
+        # truck_tara = weight
+        # container_weight = int(db.container_data(containers))
+        # net_weight = bruto_weight - truck_tara - container_weight
+        # net_weight = bruto_weight - int(truck_tara) - int(db.container_data(containers))
 
         # Insert a new "out" session
         # Here we need to get tara weight, truck id, calculate neto as input

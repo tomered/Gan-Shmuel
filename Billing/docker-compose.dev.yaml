@@ -4,8 +4,6 @@ services:
   db:
     build: ./db/
     container_name: billing-db
-    ports:
-      - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: secret
       MYSQL_DATABASE: billdb
@@ -21,19 +19,21 @@ services:
 
   app:
     build: ./app/
+    container_name: billing-app
     depends_on:
       - db
     ports: 
-      - "4000:5000"
+      - "8081:5000"
     environment:
         DB_HOST: billing-db
     networks:
       - billing-network
     volumes:
       - ./app/app.py:/app/app.py
+      - ./in:/in
 
 volumes:
-  mysql-data: 
+   mysql-data: 
 
 networks:
   billing-network:
