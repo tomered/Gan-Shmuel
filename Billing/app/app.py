@@ -163,6 +163,56 @@ def register_truck():
     
     return jsonify({"message": "Truck registered successfully"}), 201
 
+# PUT /truck/{id}  can be used to update provider id 
+@app.route('/truck/<string:id>', methods=['PUT'])
+def update_truck(id):
+    data = request.json
+    truck_id = id
+    provider_id = data.get("provider")
+    
+    # check how to validate truck id ?
+    if not provider_id:
+        #return jsonify({"error": 'provider' field is required"}), 400"
+        return jsonify({'error': 'provider is required'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if provider exists in Provider table
+    cursor.execute("SELECT id FROM Provider WHERE id = %s", (provider_id,))
+    provider = cursor.fetchone()
+    
+    if not provider:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Provider not found in Trucks"}), 404
+
+    # Check if truck exists in Trucks table
+    cursor.execute("SELECT id FROM Trucks WHERE id = %s", (truck_id,))
+    truck = cursor.fetchone()
+    
+    if not truck:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Truck not found in Trucks"}), 404
+    
+    try:
+        # Change provider in Truck table
+        cursor.execute("UPDATE Trucks SET provider_id=%s where id=%s", (provider_id, truck_id,))
+        conn.commit()
+    except Exception as e:
+        cursor.close()
+        conn.close()        
+        return jsonify({'error': str(e)}), 500
+    
+    # Closing the valid conncetion  
+    cursor.close()
+    conn.close()
+    
+    return jsonify({"message": "Truck provider changed successfully"}), 201
+
+
+
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
     app.run(host='0.0.0.0', debug=True, port=5000)
