@@ -90,42 +90,90 @@ def update_provider(id):
         data = request.get_json()
         if not data or 'name' not in data:
             return jsonify({'error': 'Name is required'}), 400
-        
+
         # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Check if provider exists
         check_query = "SELECT id FROM Provider WHERE id = %s"
         cursor.execute(check_query, (id,))
         existing = cursor.fetchone()
-        
+
         if not existing:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Provider not found'}), 404
-        
+
         # Check if the new name already exists with a different ID
         check_name_query = "SELECT id FROM Provider WHERE name = %s AND id != %s"
         cursor.execute(check_name_query, (data['name'], id))
         name_exists = cursor.fetchone()
-        
+
         if name_exists:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Another provider with this name already exists'}), 409
-        
+
         # Update the provider
         update_query = "UPDATE Provider SET name = %s WHERE id = %s"
         cursor.execute(update_query, (data['name'], id))
-        
+
         conn.commit()
         cursor.close()
         conn.close()
-        
+
         return jsonify({'id': str(id), 'name': data['name']}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route("/rates", methods=["POST"])
+def add_rate():
+    try:
+        # Get data from file
+        data = request.get_json()
+        filename = data["filename"]
+        filepath = f'/in/{filename}.xlsx'
+        
+        if not os.path.exists(filepath):
+            raise FileNotFoundError (f"Error: The file '{filepath}' does not exist")
+        
+        data_frame = pd.read_excel(f"/in/{filename}.xlsx", engine = "openpyxl")
+        file_data = data_frame.to_records(index=False).tolist()
+
+        conn = get_db_connection() 
+        cursor = conn.cursor(buffered=True)
+
+        for rate in file_data:
+            row_dict = dict(zip(data_frame.columns, rate))
+
+            if(row_dict["Scope"] != "All"):
+                cursor.execute("SELECT * FROM Provider WHERE id=%s", (row_dict["Scope"],))
+                existing_provider = cursor.fetchone()
+                if not existing_provider:
+                    raise LookupError(f"Provider with ID {row_dict["Scope"]} does not exist")
+            
+            cursor.execute("SELECT * FROM Rates WHERE product_id=%s AND scope=%s", (row_dict["Product"], row_dict["Scope"]))
+            existing_product = cursor.fetchone()
+
+            if existing_product:
+                cursor.execute("UPDATE Rates SET rate=%s, scope=%s WHERE product_id=%s",(row_dict["Rate"], row_dict["Scope"], row_dict["Product"]))
+            else :
+                cursor.execute("INSERT INTO Rates (product_id, rate, scope) VALUES (%s, %s, %s)", (row_dict["Product"],row_dict["Rate"], row_dict["Scope"]))
+            
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    except LookupError as e :
+        return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
+    except FileNotFoundError as e:
+        return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return data
+
     
 # POST /truck registers a truck in the system, provider - known provider id, 
 # id - the truck license plate
