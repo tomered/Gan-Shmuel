@@ -5,12 +5,16 @@ import json
 import logging
 import time
 import os
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()  # Load .env file if it exists
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-
 # CONFIG
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 PROD_YAML_PATHS = {
     'billing': './Billing/docker-compose.prod.yaml',
     'weight': './Weight/docker-compose.prod.yaml',
@@ -40,12 +44,23 @@ def deploy_prod(param='all'):
     else:
         subprocess.run(["docker", "compose", "-f",
                         PROD_YAML_PATHS[param], "up", "-d", "--build"], check=True, capture_output=True)
-
     app.logger.info("Deployment complete.")
 
 
+def send_slack_message(text):
+    if not SLACK_WEBHOOK_URL:
+        app.logger.warning("Slack webhook URL not set.")
+        return
+
+    response = requests.post(SLACK_WEBHOOK_URL, json={"text": text})
+    if response.status_code != 200:
+        app.logger.error(
+            f"Slack error: {response.status_code} - {response.text}")
+    else:
+        app.logger.info("Slack notification sent.")
+
+
 def ci_pipeline(payload):
-    # Get info about user, branch and commit
     try:
         data = json.loads(payload)
         full_ref = data.get("ref", "")
@@ -53,9 +68,9 @@ def ci_pipeline(payload):
         commit_hash = data["after"][:7]
         pusher_name = data["pusher"]["name"]
         pusher_email = data["pusher"]["email"]
+
         app.logger.info(
-            f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
-        app.logger.info(f"\nCI Triggered")
+            f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
 
         if branch.lower() not in PROD_YAML_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
@@ -66,8 +81,6 @@ def ci_pipeline(payload):
         subprocess.run(["git", "pull", "origin", branch], check=True)
 
         app.logger.info(f"Running tests in container for '{branch}'...")
-
-        # Create and run a container with tests
 
         # Change to run tests in future
         result = subprocess.run([
@@ -87,29 +100,26 @@ def ci_pipeline(payload):
             else:
                 app.logger.info("Branch is not main. Not deploying app")
 
-            # implement maling
-
+            send_slack_message(
+                f"✅ *CI passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
         else:
             app.logger.info("Tests failed.")
-            app.logger.info("Test Output:")
-            app.logger.info(result.stdout)
-            app.logger.info(result.stderr)
-            app.logger.info(
-                f"Notify {pusher_name} <{pusher_email}>: Tests failed.")
+            send_slack_message(
+                f"❌ *CI failed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n\n*Error Output:*\n```{result.stderr.strip()}```"
+            )
 
     except Exception as e:
-        app.logger.info(f"CI pipeline error: {e}")
+        app.logger.error(f"CI pipeline error: {e}")
+        send_slack_message(f"CI error on branch `{branch}`:\n```{e}```")
 
 
 @app.route("/trigger", methods=["POST"])
 def webhook():
-    # Webhook endpoint to handle GitHub push events
     event = request.headers.get("X-GitHub-Event", "")
     # add payload action == closed and header github event to pull_request
     if event == "push":
         payload = request.get_data(as_text=True)
         threading.Thread(target=ci_pipeline, args=(payload,)).start()
-        app.logger.info("testing trigger")
         return jsonify({"status": "CI started"}), 202
     return jsonify({"status": "Ignored"}), 200
 
