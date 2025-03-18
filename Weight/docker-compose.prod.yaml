@@ -1,7 +1,7 @@
 
 
 services:
-  web:
+  web_weight:
     depends_on:
       db:
           condition: service_healthy
@@ -16,7 +16,7 @@ services:
 
 
 
-  db:
+  db_weight:
     build: ./db/
     container_name: db_gs
     networks:
