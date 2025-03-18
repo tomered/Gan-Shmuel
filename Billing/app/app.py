@@ -79,8 +79,8 @@ def add_provider():
 
         return jsonify({'id': str(provider_id)}), 201
 
-    except Exception as e:-14
-    return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
     
 
@@ -229,10 +229,11 @@ def rates_download():
             return jsonify({"error": "No rates available for download"}), 404
         
         df = pd.DataFrame(rates)
-
-        # Write to Excel
-        df.to_excel("in/rates.xlsx", index=False)
-
+        excel_path = "../in/rates.xlsx"
+        df.to_excel(excel_path, index=False)
+        
+        # Return a success response
+        return jsonify({"message": "Rates successfully downloaded to Excel", "file_path": excel_path}), 200
     except Exception as e:
         return jsonify({"error": f"Error downloading rates: {str(e)}"}), 500
 
