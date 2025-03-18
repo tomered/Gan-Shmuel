@@ -1,9 +1,8 @@
 import os
-import csv
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
-
+import pandas as pd
 
 def get_db_connection():
     """Create a connection to the MySQL database"""
@@ -130,17 +129,31 @@ def update_provider(id):
 @app.route("/rates", methods=["POST"])
 def add_rate():
     try:
+        # Get data from file
         data = request.get_json()
         filename = data["filename"]
-        with open('Giants.csv', mode='r')as file:
-            csvReader = csv.reader(file)
-            next(csvReader, None)
-            for lines in csvReader:
-                print(lines)
+        filepath = f'/in/{filename}.xlsx'
+        
+        if not os.path.exists(filepath):
+            raise FileNotFoundError (f"Error: The file '{filepath}' does not exist")
+        
+        data_frame = pd.read_excel(f"/in/{filename}.xlsx", engine = "openpyxl")
+        data = data_frame.to_records(index=False).tolist()
 
+        conn = get_db_connection() 
+        cursor = conn.cursor()
+
+        sql = "INSERT INTO Rates (product_id, rate, scope) VALUES (%s, %s, %s)"
+        cursor.executemany(sql, data)
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except FileNotFoundError as e:
+        return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    return filename
+    return data
 
 
 if __name__ == '__main__':
