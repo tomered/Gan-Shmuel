@@ -20,11 +20,6 @@ BACKEND_PATHS = {
 DOCKER_IMAGE = "python:3.12.7"  # base image used to test inside containers
 
 
-def run_process(cmds: list):
-    result = subprocess.run(cmds, capture_output=True)
-
-
-
 def ci_pipeline(payload):
     # Get info about user, branch and commit
     try:
@@ -64,6 +59,7 @@ def ci_pipeline(payload):
         if result.returncode == 0:
             if branch == 'main':
                 app.logger.info("Tests passed. Building and deploying app...")
+
                 subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
                                f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
 
