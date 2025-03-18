@@ -170,7 +170,7 @@ def rates_download():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        query = "SELECT * FROM Rates"
+        query = "SELECT product_id, rate, scope FROM Rates"
         cursor.execute(query)
         rates = cursor.fetchall()
         
@@ -191,26 +191,3 @@ def rates_download():
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
     app.run(host='0.0.0.0', debug=True, port=5000)
-
-
-
-
-
-'''
-@app.route('/rates', methods=['GET'])
-def download_rates_as_excel():
-    try:
-        # Fetch rates from the database
-        rates_df = pd.read_sql("SELECT r.product_id, r.rate, p.name AS scope FROM Rates r LEFT JOIN Provider p ON r.scope = p.id", db_connection)
-        
-        excel_path = 'in/rates.xlsx'
-        rates_df.to_excel(excel_path, index=False)
-
-        return send_file(excel_path, as_attachment=True), 200
-    except Exception as e:
-        print("Failed to download rates with error:", e)
-        return jsonify({"error": "Failed to download rates"}), 500
-    finally:
-        if os.path.exists(excel_path):
-            os.remove(excel_path)
-'''
