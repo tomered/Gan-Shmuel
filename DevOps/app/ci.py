@@ -40,9 +40,8 @@ def ci_pipeline(payload):
         code_path = BACKEND_PATHS[branch]
 
         app.logger.info(f"Pulling latest code for '{branch}'...")
-        subprocess.run(["git", "checkout", branch], cwd=code_path, check=True)
-        subprocess.run(["git", "pull", "origin", branch],
-                       cwd=code_path, check=True)
+        subprocess.run(["git", "checkout", branch], check=True)
+        subprocess.run(["git", "pull"], check=True)
 
         app.logger.info(f"Running tests in container for '{branch}'...")
 
