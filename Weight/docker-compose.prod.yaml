@@ -35,6 +35,5 @@ networks:
 
 volumes:
   gsdata:
-    external: true
 
   ./app/: {}
