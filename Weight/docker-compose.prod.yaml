@@ -3,7 +3,7 @@
 services:
   web_weight:
     depends_on:
-      db:
+      db_weight:
           condition: service_healthy
     build: ./app/
     container_name: webapp_gs
