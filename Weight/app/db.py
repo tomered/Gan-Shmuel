@@ -1,6 +1,6 @@
+import random
 from flask import g
 import mysql.connector
-
 
 def connect_db():
     mydb = mysql.connector.connect(

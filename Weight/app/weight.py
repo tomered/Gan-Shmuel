@@ -1,18 +1,14 @@
-import json
 from flask import Flask, request, jsonify
 from datetime import datetime
 import mysql.connector
 import db
+
 app = Flask(__name__)
 
-mydb = mysql.connector.connect(
-  host="db_gs",
-  user="root",
-  password="root",
-  database="weight"
-)
+mydb = db.connect_db()
 
-cursor = mydb.cursor(dictionary=True)
+cursor = mydb.cursor(dictionary=True, buffered=True)
+
 
 @app.route('/')
 def home():
@@ -23,32 +19,6 @@ def home():
 # def close_connection(exception):
 #     db.close_db()
 
-sessions_data = [
-    {
-        "id": "1619874477.123456",
-        "direction": "in",
-        "bruto": 1000,
-        "neto": "na",
-        "produce": "orange",
-        "containers": ["str1", "str2"]
-    },
-    {
-        "id": "1619874487.234567",
-        "direction": "out",
-        "bruto": 1500,
-        "neto": 1000,
-        "produce": "tomato",
-        "containers": ["str3"]
-    },
-    {
-        "id": "1619874497.345678",
-        "direction": "none",
-        "bruto": 800,
-        "neto": "na",
-        "produce": "na",
-        "containers": []
-    }
-]
 items_data = {
     "truck1": {
         "tara": 800,
@@ -59,25 +29,48 @@ items_data = {
         "sessions": ["1619874497.345678"]
     }
 }
-# http://localhost:5000/item/truck1?from=20230301000000&to=20230302235959
+
+
 @app.route("/item/<id>", methods=["GET"])
 def get_item(id):
-    from_param = request.args.get('from', default="20230301000000")
-    to_param = request.args.get('to', default=str(
-        datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
     try:
-        t1 = datetime.datetime.strptime(from_param, '%Y%m%d%H%M%S')
-        t2 = datetime.datetime.strptime(to_param, '%Y%m%d%H%M%S')
-    except ValueError:
-        return jsonify({"error": "Invalid date format. Expected format: yyyymmddhhmmss"}), 400
-    if id not in items_data:
-        return jsonify({"error": "Item not found"}), 404
-    item_data = items_data[id]
-    return jsonify({
-        "id": id,
-        "tara": item_data["tara"],
-        "sessions": item_data["sessions"]
-    }), 200
+        
+        from_time = request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000")
+        to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+
+
+        cursor.execute("SELECT truck FROM transactions WHERE truck = %s", (id,))
+        id_check = cursor.fetchone()  # Fetch one result 
+
+        if not id_check:
+            return jsonify({"error": "Item not found"}), 404 
+
+        # Construct SQL query
+        query = """
+        SELECT 
+            truck, 
+            truckTara, 
+            GROUP_CONCAT(DISTINCT session ORDER BY session SEPARATOR ', ') AS sessions
+        FROM transactions
+        WHERE datetime BETWEEN %s AND %s
+        AND truck = %s
+        GROUP BY truck, truckTara
+        """
+        params = (from_time, to_time, id) 
+
+        cursor.execute(query, params)
+        result = cursor.fetchone()
+
+
+        return jsonify(result)
+    
+    except mysql.connector.Error as e:
+        return jsonify({"error": str(e)}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # http://localhost:5000/session/1619874477.123456
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):
