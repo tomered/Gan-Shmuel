@@ -99,8 +99,6 @@ def info_insert():
     def fetch_session_id():
         mysql = db.connect_db()
         cursor = mysql.cursor(dictionary=True)
-
-        # set up the last session id to maintaine continues
         cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
         result = cursor.fetchone()
         if result is None:
@@ -120,10 +118,8 @@ def info_insert():
     
 
     # Validate required fields
-    if not direction or weight is None:
+    if not direction or weight is None or not truck or not containers:
         return ({"error": "Missing required fields"}), 400
-    
-
 
     mysql = db.connect_db()
     cursor = mysql.cursor(dictionary=True)
@@ -139,7 +135,8 @@ def info_insert():
             return {"error": "An active 'in' session already exists. Use force=true to overwrite."}, 500
         # Insert a new "in" session
         session_id= fetch_session_id()
-        session_id +=1
+        if not force:
+            session_id +=1
         cursor.execute("INSERT INTO transactions (session, truck, direction, bruto, datetime, containers, produce) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, weight, current_date, containers, produce))
         mysql.commit()
@@ -182,19 +179,19 @@ def info_insert():
 
     # Direction: "none"
     elif direction == "none":
-        cursor.execute(""" SELECT direction FROM transactions ORDER BY datetime DESC""")
+        cursor.execute(""" SELECT direction FROM transactions ORDER BY datetime DESC LIMIT 1;""")
         result = cursor.fetchone()
-        if result == "in":
+        if 'in' in result['direction']:
             return ("Error, na after in detected"), 500
         session_id= fetch_session_id()
         session_id +=1
-        cursor.execute("INSERT INTO transactions (session, direction, truck) VALUES ('%s', '%s', 'na')", (session_id, direction))
+        cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
         mysql.commit()
-        return {"id": session_id, "truck": "na", "bruto": weight}
+        return {"id": session_id, "truck": "na", "bruto": weight, "result":result}, 200
 
     # If invalid direction
     return {"Error": "Page Not Found, try different route"}, 404
-    
+ 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
