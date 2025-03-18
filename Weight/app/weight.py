@@ -4,7 +4,7 @@ import db
 from datetime import datetime
 
 app = Flask(__name__)
-session_counter=0
+
 # Close DB connection after each request
 # @app.teardown_appcontext
 # def close_connection(exception):
@@ -85,6 +85,9 @@ def get_session(id):
 def healthcheck():
     return ('OK', 200)
 
+# Generate a unique ID for session
+
+
 @app.route('/weight', methods=['POST'])
 def info_insert():
     # Ensure correct Content-Type
@@ -93,7 +96,6 @@ def info_insert():
 
     # Parse JSON payload
     data = request.json
-    # trans_id = data.get('id')
     direction = data.get('direction')  # "in", "out", or "none"
     truck = data.get('truck', 'na')  # Default to "na" if no truck is provided
     containers = data.get('containers', '')  # Comma-separated container IDs
@@ -103,32 +105,40 @@ def info_insert():
     produce = data.get('produce', 'na')  # Default to "na"
     current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+
     # Validate required fields
     if not direction or weight is None:
         return ({"error": "Missing required fields"}), 400
     
     mysql = db.connect_db()  # Get DB connection
     cursor = mysql.cursor(dictionary=True)
+    #set up the last session id to maintaine continues
+    # cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
+    def fetch_session_id():
+        mysql = db.connect_db()  # Get DB connection
+        cursor = mysql.cursor(dictionary=True)
+        # cursor.execute("SELECT MAX(session) FROM transactions LIMIT 1")  # Adjust table and column names as needed
 
-    # Generate a unique ID for session
-    def generate_session_id():
-        global session_counter
-        session_counter += 1
-        return session_counter
-    
+        # set up the last session id to maintaine continues
+        cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
+        result = cursor.fetchone()
+        if result is None:
+            return 0
+        return result
+
 
     # Direction: "in" DONE!!!!!!
     if direction == "in":
         # Check if there's an "in" session for the same truck
-        
         cursor.execute(""" SELECT * FROM transactions WHERE truck = %s AND direction = 'in' AND session NOT IN 
-                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck,))
+                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck, ))
         existing_in = cursor.fetchone()
+
+
         if existing_in and not force:
             return {"error": "An active 'in' session already exists. Use force=true to overwrite."}
-
         # Insert a new "in" session
-        session_id= generate_session_id()
+        session_id= fetch_session_id()
         cursor.execute("INSERT INTO transactions (session, truck, direction, bruto, datetime, containers, produce) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, weight, current_date, containers, produce))
         mysql.commit()
@@ -137,22 +147,23 @@ def info_insert():
     # Direction: "out"
     elif direction == "out":
         # Get the latest "in" session for this truck
-        cursor.execute("SELECT * FROM transactions WHERE truck = %s AND session = %s AND direction = 'in' ORDER BY datetime DESC LIMIT 1", (truck, session_id))
-        last_in = cursor.fetchone()
+        cursor.execute(""" SELECT * FROM transactions WHERE truck = %s AND direction = 'in' AND session NOT IN 
+                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck, session_id))
+        last_in = cursor.fetchall()
 
         if not last_in:
             return {"error": "No 'in' session found for this truck. Cannot proceed with 'out'."}
 
-        # Calculate net weight if container weights are known (logic may vary)
-        
-        truck_tara = last_in.get("weight", 0)
-        net_weight = last_in.get("bruto", 0) - truck_tara
+        # Calculate neto (Fruits)
+    
+        truck_tara = weight
+        net_weight = (int(last_in.get("bruto", 0)) - int(truck_tara) - int(db.container_data(containers)))
 
         # Insert a new "out" session
         # Here we need to get tara weight, truck id, calculate neto as input
-        cursor.execute("INSERT INTO transactions (session, truck, direction) VALUES (%s, %s, %s)", (last_in["session"], truck, direction))
+        cursor.execute("INSERT INTO transactions (session, truck, direction, truckTara, datetime, containers, neto) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, truck_tara, current_date, containers, net_weight))
         mysql.commit()
-        net_weight=weight - last_in.get("weight", 0)
         return {
             "id": last_in["session"],
             "truck": truck,
