@@ -128,7 +128,7 @@ def update_provider(id):
         return jsonify({'error': str(e)}), 500
     
 @app.route('/truck/<id>',methods=['GET'])
-def get_truck_session(id):
+def get_truck_sessions(id):
     t1 = request.args.get('from')
     t2 = request.args.get('to')
 
