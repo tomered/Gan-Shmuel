@@ -11,32 +11,36 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 # CONFIG
-BACKEND_PATHS = {
-    "billing": "./Billing",  # path to billing code
-    "weight": "./Weight",     # path to weight code
-    "main": "."
-}
-
 PROD_YAML_PATHS = {
     'billing': './Billing/docker-compose.prod.yaml',
     'weight': './Weight/docker-compose.prod.yaml',
+    'main': '.'
 }
 
 
-def takedown_prod():
+def takedown_prod(param='all'):
     app.logger.info("Taking down old prod")
-    subprocess.run(['docker', 'compose', '-f',
-                   PROD_YAML_PATHS['billing'], 'down'])
-    subprocess.run(['docker', 'compose', '-f',
-                   PROD_YAML_PATHS['weight'], 'down'])
+    if param == 'all':
+        subprocess.run(['docker', 'compose', '-f',
+                        PROD_YAML_PATHS['billing'], 'down'], check=True)
+        subprocess.run(['docker', 'compose', '-f',
+                        PROD_YAML_PATHS['weight'], 'down'], check=True)
+    else:
+        subprocess.run(['docker', 'compose', '-f',
+                        PROD_YAML_PATHS[param], 'down'], check=True)
 
 
-def deploy_prod():
+def deploy_prod(param='all'):
     app.logger.info("Tests passed. Deploying to prod...")
-    subprocess.run(["docker", "compose", "-f",
-                   PROD_YAML_PATHS['billing'], "up", "-d", "--build"], check=True, capture_output=True)
-    subprocess.run(["docker", "compose", "-f",
-                   PROD_YAML_PATHS['weight'], "up", "-d", "--build"], check=True, capture_output=True)
+    if param == 'all':
+        subprocess.run(["docker", "compose", "-f",
+                        PROD_YAML_PATHS['billing'], "up", "-d", "--build"], check=True, capture_output=True)
+        subprocess.run(["docker", "compose", "-f",
+                        PROD_YAML_PATHS['weight'], "up", "-d", "--build"], check=True, capture_output=True)
+    else:
+        subprocess.run(["docker", "compose", "-f",
+                        PROD_YAML_PATHS[param], "up", "-d", "--build"], check=True, capture_output=True)
+
     app.logger.info("Deployment complete.")
 
 
@@ -53,11 +57,9 @@ def ci_pipeline(payload):
             f"data:{data}\nfull_ref: {full_ref}\nbranch: {branch}\ncommit_hash: {commit_hash}\npush_name: {pusher_name}\npusher_email: {pusher_email}")
         app.logger.info(f"\nCI Triggered")
 
-        if branch.lower() not in BACKEND_PATHS:
+        if branch.lower() not in PROD_YAML_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
             return jsonify({"status": "No ci setup"}), 400
-
-        code_path = BACKEND_PATHS[branch]
 
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], check=True)
@@ -77,7 +79,7 @@ def ci_pipeline(payload):
 
         if result.returncode == 0:
             if branch.lower() == 'main':
-                if (os.path.isfile('./Billing/docker-compose.prod.yaml') and os.path.isfile()):
+                if (os.path.isfile(PROD_YAML_PATHS["billing"]) and os.path.isfile(PROD_YAML_PATHS["weight"])):
                     takedown_prod()
                     deploy_prod()
 
