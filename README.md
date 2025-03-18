@@ -1,3 +1,2 @@
 # Gan-Shmuel
 test
-as
