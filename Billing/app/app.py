@@ -2,6 +2,7 @@ import os
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
+import datetime
 
 
 def get_db_connection():
@@ -126,37 +127,34 @@ def update_provider(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
-@app.route('/truck/<id>')
+@app.route('/truck/<id>',methods=['GET'])
 def get_truck_session(id):
-    
+    t1 = request.args.get('from')
+    t2 = request.args.get('to')
+
+    if t1 is None:
+        now = datetime.datetime.now()
+        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
+
+    if t2 is None:
+        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+
+    api=f"http://idontknow:8081/item/{id}?from={t1}&to={t2}"
+
+    truck_info = {
+        "id": "id",
+        "tara": "tara",
+        "sessions": "sessions"
+    }
+
+    try:
+        response = requests.get(api, params=truck_info)
+        return response.json(), 200
+    except:
+        return jsonify({"error": "truck is non-existent"}), 404
+
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
     app.run(host='0.0.0.0', debug=True, port=5000)
-
-
-
-'''
-@app.route('/truck/<truck_id>',methods=['GET'])
-def get_truck_weight(truck_id):
-    t1_str = request.args.get('from', datetime.now().replace(day=1).strftime('%Y%m%d%H%M%S'))
-    t2_str = request.args.get('to', datetime.now().strftime('%Y%m%d%H%M%S'))
-
-    t1 = datetime.strptime(t1_str, '%Y%m%d%H%M%S')
-    t2 = datetime.strptime(t2_str, '%Y%m%d%H%M%S')
-    weight_api = f"http://51.17.41.172:8081/item/{truck_id}?from={t1}&to={t2}"
-    params = {
-
-        "id": "id",
-        "sessions": "sessions",
-        "tara":  "tara"
-
-    }
-    try:
-        response = requests.get(weight_api, params=params)
-        return response.json(), 200
-    except:
-        return jsonify({"error": "invalid truck id"}), 400
-'''
-
 
 
