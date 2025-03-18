@@ -82,8 +82,6 @@ def add_provider():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-    
-
 @app.route('/provider/<int:id>', methods=['PUT'])
 def update_provider(id):
     try:
