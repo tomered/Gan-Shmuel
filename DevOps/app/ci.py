@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.DEBUG)
 BACKEND_PATHS = {
     "billing": "./Billing",  # path to billing code
     "weight": "./Weight",     # path to weight code
-    "main": ""
+    "main": "."
 }
 
 DOCKER_IMAGE = "python:3.12.7"  # base image used to test inside containers
@@ -49,7 +49,7 @@ def ci_pipeline(payload):
 
         # Change to run tests in future
         result = subprocess.run([
-            "docker", "run", "--rm",
+            "docker", "run",
             "-v", f"/Gan-Shmuel/{branch}:/app",
             "-w", "/app",
             "hello-world",
