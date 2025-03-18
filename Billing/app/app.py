@@ -79,8 +79,8 @@ def add_provider():
 
         return jsonify({'id': str(provider_id)}), 201
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception as e:-14
+    return jsonify({'error': str(e)}), 500
 
 @app.route('/provider/<int:id>', methods=['PUT'])
 def update_provider(id):
@@ -124,6 +124,44 @@ def update_provider(id):
         return jsonify({'id': str(id), 'name': data['name']}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+# POST /truck registers a truck in the system, provider - known provider id, 
+# id - the truck license plate
+@app.route("/truck", methods=["POST"])
+def register_truck():
+    data = request.json
+    truck_id = data.get("id")
+    provider_id = data.get("provider")
+    
+    if not truck_id or not provider_id:
+        return jsonify({"error": "Both 'id' and 'provider' fields are required"}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if provider exists
+    cursor.execute("SELECT id FROM Provider WHERE id = %s", (provider_id,))
+    provider = cursor.fetchone()
+    
+    if not provider:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Provider not found"}), 404
+    
+    try:
+        # Insert truck record
+        cursor.execute("INSERT INTO Trucks (id, provider_id) VALUES (%s, %s)", (truck_id, provider_id))
+        conn.commit()
+    except mysql.connector.IntegrityError:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Truck ID already exists"}), 409
+    
+    cursor.close()
+    conn.close()
+    
+    return jsonify({"message": "Truck registered successfully"}), 201
+
     
 @app.route('/truck/<id>', methods=['GET'])
 def get_truck_sessions(id):
