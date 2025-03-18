@@ -2,6 +2,9 @@
 *.venv
 
 # DEVOPS
+*__pycache__*
+*venv*
+.env
 
 # BILLING
 
