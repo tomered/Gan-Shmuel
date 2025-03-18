@@ -48,6 +48,7 @@ def ci_pipeline(payload):
 
         # Create and run a container with tests
 
+        # Change to run tests in future
         result = subprocess.run([
             "docker", "run", "--rm",
             "-v", f"/Gan-Shmuel/{branch}:/app",
@@ -56,17 +57,19 @@ def ci_pipeline(payload):
         ], capture_output=True, text=True)
 
         if result.returncode == 0:
-            app.logger.info("Tests passed. Building and deploying app...")
+            if branch == 'main':
+                app.logger.info("Tests passed. Building and deploying app...")
 
-            # subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml",
-            #                "-f", f"{code_path}/docker-compose.override.prod.yaml" "build"], check=True)
-            subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
-                           f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
+                subprocess.run(["docker", "compose", "-f", f"{code_path}/docker-compose.prod.yaml", "-f",
+                               f"/ci//docker-compose.override.prod.yaml", "up", "-d", "--build"], check=True, capture_output=True)
 
-            app.logger.info("Deployment complete.")
+                app.logger.info("Deployment complete.")
             time.sleep(5)
             subprocess.run(["docker", "compose", "-f",
                            f"{code_path}/docker-compose.prod.yaml", "-f", f"/ci//docker-compose.override.prod.yaml", "down"])
+
+            # implement mailing
+
         else:
             app.logger.info("Tests failed.")
             app.logger.info("Test Output:")
