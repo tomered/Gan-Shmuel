@@ -1,4 +1,4 @@
-import os
+import os, csv
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
@@ -82,7 +82,6 @@ def add_provider():
         return jsonify({'error': str(e)}), 500
 
     
-
 @app.route('/provider/<int:id>', methods=['PUT'])
 def update_provider(id):
     try:
@@ -125,6 +124,17 @@ def update_provider(id):
         return jsonify({'id': str(id), 'name': data['name']}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route("/rates", methods=["POST"])
+def add_rate():
+    try:
+        data = request.get_json()
+        filename = data["filename"]
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return filename
+        
     
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
