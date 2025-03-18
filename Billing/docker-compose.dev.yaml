@@ -19,6 +19,7 @@ services:
 
   app:
     build: ./app/
+    container_name: billing-app
     depends_on:
       - db
     ports: 
@@ -29,9 +30,10 @@ services:
       - billing-network
     volumes:
       - ./app/app.py:/app/app.py
+      - ./in:/in
 
 volumes:
-  mysql-data: 
+   mysql-data: 
 
 networks:
   billing-network:
