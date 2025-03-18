@@ -138,14 +138,22 @@ def add_rate():
             raise FileNotFoundError (f"Error: The file '{filepath}' does not exist")
         
         data_frame = pd.read_excel(f"/in/{filename}.xlsx", engine = "openpyxl")
-        data = data_frame.to_records(index=False).tolist()
+        file_data = data_frame.to_records(index=False).tolist()
 
         conn = get_db_connection() 
-        cursor = conn.cursor()
+        cursor = conn.cursor(buffered=True)
 
-        sql = "INSERT INTO Rates (product_id, rate, scope) VALUES (%s, %s, %s)"
-        cursor.executemany(sql, data)
+        for rate in file_data:
+            row_dict = dict(zip(data_frame.columns, rate))
+            
+            cursor.execute("SELECT * FROM Rates WHERE product_id=%s", (row_dict["Product"],))
+            existing_product = cursor.fetchone()
 
+            if existing_product:
+                cursor.execute("UPDATE Rates SET rate=%s, scope=%s WHERE product_id=%s",(row_dict["Rate"], row_dict["Scope"], row_dict["Product"]))
+            else :
+                cursor.execute("INSERT INTO Rates (product_id, rate, scope) VALUES (%s, %s, %s)", (row_dict["Product"],row_dict["Rate"], row_dict["Scope"]))
+            
         conn.commit()
         cursor.close()
         conn.close()
