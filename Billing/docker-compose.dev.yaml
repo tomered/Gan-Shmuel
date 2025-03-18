@@ -1,0 +1,39 @@
+version: "3"
+
+services:
+  db:
+    build: ./db/
+    container_name: billing-db
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: billdb
+      MYSQL_USER: billing-user
+      MYSQL_PASSWORD: secret
+    networks:
+      - billing-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: ./app/
+    depends_on:
+      - db
+    ports: 
+      - "4000:5000"
+    environment:
+        DB_HOST: billing-db
+    networks:
+      - billing-network
+    volumes:
+      - ./app/app.py:/app/app.py
+
+volumes:
+  mysql-data: 
+
+networks:
+  billing-network:
