@@ -72,15 +72,15 @@ def ci_pipeline(payload):
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
 
 
-        if branch.lower() in PROD_YAML_PATHS:
-            app.logger.info(f"Pulling latest code for '{branch}'...")
-            subprocess.run(["git", "checkout", branch], check=True)
-            subprocess.run(["git", "pull", "origin", branch], check=True)
-
-            app.logger.info(f"Running tests in container for '{branch}'...")
-        else:
+        if branch.lower() not in PROD_YAML_PATHS:
             app.logger.info(f"No CI setup for branch: {branch}")
-            return f"No CI setup for branch {branch}."
+            return f"No CI setup for branch: {branch}"
+
+        app.logger.info(f"Pulling latest code for '{branch}'...")
+        subprocess.run(["git", "checkout", branch], check=True)
+        subprocess.run(["git", "pull", "origin", branch], check=True)
+
+        app.logger.info(f"Running tests in container for '{branch}'...")
             
         
         # Change to run tests in future
