@@ -12,6 +12,11 @@ mydb = db.connect_db()
 
 cursor = mydb.cursor(dictionary=True, buffered=True)
 
+# Converts LBS to kg, Returns int per containers_registered table.
+def convert_weight(weight):
+    # LBS to Kg conversion
+    new_weight = int(weight) * 0.45359237
+    return int(new_weight)
 
 @app.route('/')
 def home():
@@ -165,7 +170,10 @@ def info_insert():
     force = data.get('force', False)  # Default is False
     produce = data.get('produce', 'na')  # Default to "na"
     current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
+
+    # Converts weight from Pounds to Kilograms 
+    if unit.lower() == "lbs" or unit.lower() == "lb":
+        weight = convert_weight(weight)
 
     # Validate required fields
     if not direction or weight is None or not truck or not containers:
