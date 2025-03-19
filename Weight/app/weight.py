@@ -215,5 +215,37 @@ def info_insert():
     return {"Error": "Page Not Found, try different route"}, 404
  
 
+'''
+#GET /unknown
+Returns a list of all recorded containers that have unknown weight:
+["id1","id2",...]
+'''
+@app.route('/unknown', methods=['GET'])
+def get_unknown():
+    
+    try:        
+        # Intializing a list for empty containers
+        contaniers_empty = []
+
+        # SQL querry for empty_containers, where whight is null
+        query = """
+        SELECT container_id from containers_registered WHERE weight IS NULL
+        """     
+
+        cursor.execute(query)
+        result = cursor.fetchall()
+
+        # indexing the specifc ID's from the querry to the containers_empty list
+        for id in result:
+            contaniers_empty.append(id["container_id"])
+        
+        # Return the list of empty continare id's 
+        return {"id": contaniers_empty}, 200
+
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
