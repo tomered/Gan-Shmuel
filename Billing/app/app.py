@@ -239,16 +239,25 @@ def rates_download():
         return jsonify({"error": f"Error downloading rates: {str(e)}"}), 500
     
 @app.route('/bill/<id>', methods=['GET'])
-def get_truck_sessions(id):
+def get_bill(id):
     if not id.strip():
-        return jsonify({"error": "Truck ID cannot be empty"}), 400
+        return jsonify({"error": "Provider ID cannot be empty"}), 400
 
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
 
     if error:
         return jsonify({"error": error[0]}), error[1]
 
-    name, truckCount, truckList = get_billdb_data(id)
+    success, result_or_error, name, truckCount, truckList = get_billdb_data(id)
+
+    if not success:
+        return jsonify({"error": result_or_error}), 404 if "not found" in result_or_error else 500
+
+    sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
+
+    if isinstance(sessionListPerTruck, str):
+        return jsonify({"error": sessionListPerTruck})
+    
 
     products = [
         create_product("Apples", 2, 500, 250),
@@ -268,6 +277,23 @@ def get_truck_sessions(id):
         "total": total_payment
     }
     
+def get_session_list_per_truck(truckList,t1,t2):
+    truck_sessions_dict = {}
+    for truck in truckList:
+        try:
+            truck_id = truck['id']
+
+            response = requests.get(f"{base_url}/item/{truck_id}?from={t1}&to={t2}")
+            truck_data = response.json()
+            truck_sessions_dict[truck_id] = truck_data.get('sessions', [])
+
+        except requests.exceptions.RequestException as e:
+            return f"Error fetching data for truck {truck_id}: {e}"
+        except Exception as e:
+            return f"Error processing truck {truck_id}: {e}"
+    
+    return truck_sessions_dict
+
 def validate_time(t1, t2):
     if t1 is None:
         now = datetime.datetime.now()
@@ -330,14 +356,14 @@ def get_billdb_data(id):
         conn.close()
             
         if name_and_truckcount is not None and trucks_list is not None:
-            return name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list
+            return True, True, name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list
         else:
             # Provider not found
-            return jsonify({"error": "billdb not found"}), 404
+            return False, "Provider not found", None, None, None
         
     except Exception as e:
         # Database or other error
-        return jsonify({"error": "Error retrieving data from database"}), 500
+        return False, f"Error retrieving data from database: {str(e)}", None, None, None
     
 def create_product(product_name, session_count, amount_kg, rate_agorot):
     pay = amount_kg * rate_agorot
