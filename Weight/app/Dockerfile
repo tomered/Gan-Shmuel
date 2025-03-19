@@ -9,6 +9,7 @@ WORKDIR /app/
 RUN pip install -r requierments.txt
 COPY ./weight.py ./db.py ./
 
+
 #Create and switch to new user
 RUN useradd --user-group --system --no-log-init --create-home pythonuser
 USER pythonuser
