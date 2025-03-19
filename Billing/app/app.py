@@ -240,15 +240,15 @@ def rates_download():
     
 @app.route('/bill/<id>', methods=['GET'])
 def get_truck_sessions(id):
+    if not id.strip():
+        return jsonify({"error": "Truck ID cannot be empty"}), 400
+
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
 
     if error:
         return jsonify({"error": error[0]}), error[1]
 
-    if not id.strip():
-        return jsonify({"error": "Truck ID cannot be empty"}), 400
-
-    name, truckCount = get_provider_data(id)
+    name, truckCount, truckList = get_billdb_data(id)
 
     products = [
         create_product("Apples", 2, 500, 250),
@@ -291,13 +291,13 @@ def validate_time(t1, t2):
     
     return t1, t2, None
 
-def get_provider_data(id):
+def get_billdb_data(id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
         # SQL query to get provider name and count trucks
-        query = """
+        name_and_count_query = """
         SELECT 
             p.name AS provider_name,
             COUNT(t.id) AS truck_count
@@ -311,18 +311,29 @@ def get_provider_data(id):
             p.id, p.name
         """
 
-        cursor.execute(query, (id,))
-        
-        result = cursor.fetchone()
+        trucks_query = """
+        SELECT
+            t.id, t.model, t.year, t.license_plate  # or whatever truck fields you need
+        FROM
+            Trucks t
+        WHERE
+            t.provider_id = %s
+        """
+
+        cursor.execute(name_and_count_query, (id,))
+        name_and_truckcount = cursor.fetchone()
+
+        cursor.execute(trucks_query, (id,))
+        trucks_list = cursor.fetchall()
         
         cursor.close()
         conn.close()
             
-        if result is not None:
-            return result["name"], result["truckCount"]
+        if name_and_truckcount is not None and trucks_list is not None:
+            return name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list
         else:
             # Provider not found
-            return jsonify({"error": "Provider not found"}), 404
+            return jsonify({"error": "billdb not found"}), 404
         
     except Exception as e:
         # Database or other error
