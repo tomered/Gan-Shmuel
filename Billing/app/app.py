@@ -328,9 +328,10 @@ def get_bill(id):
         return jsonify({"error": "Provider ID cannot be empty"}), 400
 
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
-    success, result_or_error, name, truckCount, truckList = get_billdb_data(id)
+    success, result_or_error, name, truckCount, truckList, ratesList = get_billdb_data(id)
     sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
-    product_stats = process_session_data(sessionListPerTruck,t1,t2)   #product_stats[product] = {"count": 0, "amount": 0}
+    #Format: product_stats[product] = {"count": 0, "amount": 0}
+    product_stats = process_session_data(sessionListPerTruck,t1,t2)   
 
     #Error checks on frunctions
     if error:
@@ -342,6 +343,12 @@ def get_bill(id):
     elif isinstance(product_stats, str):
         return jsonify({"error": sessionListPerTruck})
     
+    products = []
+    for product_id, rate, scope in ratesList:
+        amount = product_stats[product_id]["amount"]
+        count = product_stats[product_id]["count"]
+        products.add(create_product(product_id, count, amount, rate))
+
     total_payment = sum(product["pay"] for product in products)
 
     data = {
@@ -395,9 +402,9 @@ def get_session_list_per_truck(truckList,t1,t2):
             truck_sessions_dict[truck] = truck_data.get('sessions', [])
 
         except requests.exceptions.RequestException as e:
-            return None, f"Error fetching data for truck {truck_id}: {e}"
+            return None, f"Error fetching data for truck {truck}: {e}"
         except Exception as e:
-            return None, f"Error processing truck {truck_id}: {e}"
+            return None, f"Error processing truck {truck}: {e}"
         
     total_sessions = sum(len(sessions) for sessions in truck_sessions_dict.values())
     
@@ -455,24 +462,39 @@ def get_billdb_data(id):
             t.provider_id = %s
         """
 
+        rates_query = """
+        SELECT r1.product_id, r1.rate
+        FROM Rates r1
+        WHERE 
+            (r1.scope = %s) OR
+            (r1.scope = 'all' AND NOT EXISTS (
+                SELECT 1 FROM Rates r2 
+                WHERE r2.product_id = r1.product_id AND r2.scope = %s
+            ))
+        ORDER BY r1.product_id
+        """
+
         cursor.execute(name_and_count_query, (id,))
         name_and_truckcount = cursor.fetchone()
 
         cursor.execute(trucks_query, (id,))
         trucks_list = cursor.fetchall()
         
+        cursor.execute(trucks_query, (id,))
+        rates_list = cursor.fetchall()
+
         cursor.close()
         conn.close()
             
         if name_and_truckcount is not None and trucks_list is not None:
-            return True, True, name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list
+            return True, True, name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list, rates_list
         else:
             # Provider not found
-            return False, "Provider not found", None, None, None
+            return False, "Provider not found, happend in get_billdb_data()", None, None, None, None
         
     except Exception as e:
         # Database or other error
-        return False, f"Error retrieving data from database: {str(e)}", None, None, None
+        return False, f"Error retrieving data from database: {str(e)}", None, None, None, None
     
 def create_product(product_name, session_count, amount_kg, rate_agorot):
     pay = amount_kg * rate_agorot
