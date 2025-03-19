@@ -94,6 +94,14 @@ def ci_pipeline(payload):
 
         if result.returncode == 0:
             if branch.lower() == 'main':
+                res = subprocess.run(
+                    'docker network inspect prod_network >/dev/null 2>&1 || docker network create prod_network',
+                    shell=True,
+                    check=True
+                )
+
+                app.logger.info({res})
+
                 if (os.path.isfile(PROD_YAML_PATHS["billing"]) and os.path.isfile(PROD_YAML_PATHS["weight"])):
                     takedown_prod()
                     deploy_prod()
