@@ -372,13 +372,11 @@ def process_session_data(sessionListPerTruck,t1,t2):
                 response = requests.get(api)
                 session_data = response.json()
 
-                #TODO: do i count the not out sessions?
                 if "truckTara" in session_data:
                     neto = session_data.get("neto")
                     product = session_data.get("produce")
                 else:
                     continue
-                #TODO: what is product equals na?
                 if neto != "na":
                     if product not in product_stats:
                         product_stats[product] = {"count": 0, "amount": 0}
