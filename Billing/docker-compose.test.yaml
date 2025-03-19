@@ -22,26 +22,23 @@ services:
     depends_on:
       - billing-db
     ports: 
-      - "8081:5000"
+      - "8083:5000"
     environment:
         DB_HOST: billing-db
     networks:
       - test-network
     volumes:
       - ./in:/in
-      - ./app/tests:/app/tests
-    command: >
-          /bin/sh -c "
-                  until wget --spider http://localhost:5000/health; do
-                    echo 'Waiting for Flask app...'
-                    sleep 2
-                  done;
-            # Run the tests
-            unittest --maxfail=1 --disable-warnings -q && echo 'Tests Passed' || echo 'Tests Failed';
-            
-            # Shutdown container after tests
-            exit 0
-          "
+
+  billing-test:
+    build: ./tests/
+    container_name: billing-test
+    depends_on: 
+      - billing-app
+    networks:
+      - test-network
+  
+
 
 
 volumes:
