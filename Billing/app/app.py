@@ -240,32 +240,15 @@ def rates_download():
     
 @app.route('/bill/<id>', methods=['GET'])
 def get_truck_sessions(id):
-    t1 = request.args.get('from')
-    t2 = request.args.get('to')
-    
-    if t1 is None:
-        now = datetime.datetime.now()
-        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
-    else:
-        try:
-            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
-        except ValueError:
-            return jsonify({"error": "Invalid 'from' date format. Use yyyymmddhhmmss"}), 400
-            
-    if t2 is None:
-        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-    else:
-        try:
-            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
-        except ValueError:
-            return jsonify({"error": "Invalid 'to' date format. Use yyyymmddhhmmss"}), 400
-    
-    if t1 > t2:
-        return jsonify({"error": "Start time must be before end time"}), 400
+    t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
+
+    if error:
+        return jsonify({"error": error[0]}), error[1]
 
     if not id.strip():
         return jsonify({"error": "Truck ID cannot be empty"}), 400
 
+    name, truckCount = get_provider_data(id)
 
     products = [
         create_product("Apples", 2, 500, 250),
@@ -276,14 +259,37 @@ def get_truck_sessions(id):
 
     data = {
         "id": id,
-        "name": "Farm Delivery",
+        "name": name,
         "from": t1,
         "to": t2,
-        "truckCount": 3,
+        "truckCount": truckCount,
         "sessionCount": sum(int(p["count"]) for p in products),
         "products": products,
         "total": total_payment
     }
+    
+def validate_time(t1, t2):
+    if t1 is None:
+        now = datetime.datetime.now()
+        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
+        except ValueError:
+            return None, None, ("Invalid 'from' date format. Use yyyymmddhhmmss", 400)
+        
+    if t2 is None:
+        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
+        except ValueError:
+            return None, None, ("Invalid 'to' date format. Use yyyymmddhhmmss", 400)
+    
+    if t1 > t2:
+        return None, None, ("Start time must be before end time", 400)
+    
+    return t1, t2, None
 
 def get_provider_data(id):
     try:
