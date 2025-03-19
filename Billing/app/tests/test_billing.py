@@ -1,7 +1,5 @@
 import unittest
-from flask import Flask, jsonify
 from ..app import app  # Import your Flask app
-import mysql.connector
 from unittest.mock import patch, MagicMock
 
 
@@ -18,7 +16,7 @@ class TestProvider(unittest.TestCase):
         mock_cursor.lastrowid = 1
 
         # Use Flask's test client to simulate a request
-        with app.test_client as client:
+        with app.test_client() as client:
             response = client.post('/provider', json={'name': 'Test'})
 
         self.assertEqual(response.status_code, 200)

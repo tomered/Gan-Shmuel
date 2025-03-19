@@ -29,6 +29,20 @@ services:
       - test-network
     volumes:
       - ./in:/in
+      - ./app/tests:/app/tests
+    command: >
+          /bin/sh -c "
+                  until wget --spider http://localhost:5000/health; do
+                    echo 'Waiting for Flask app...'
+                    sleep 2
+                  done;
+            # Run the tests
+            unittest --maxfail=1 --disable-warnings -q && echo 'Tests Passed' || echo 'Tests Failed';
+            
+            # Shutdown container after tests
+            exit 0
+          "
+
 
 volumes:
   mysql-data: 

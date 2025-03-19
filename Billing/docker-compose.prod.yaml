@@ -1,6 +1,7 @@
+version: "3"
 
 services:
-  billing-db:
+  db:
     build: ./db/
     container_name: billing-db
     environment:
@@ -9,30 +10,26 @@ services:
       MYSQL_USER: billing-user
       MYSQL_PASSWORD: secret
     networks:
-      - gsnetwork
+      - billing-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  billing-app:
+  app:
     build: ./app/
-    container_name: billing-app
     depends_on:
-      - billing-db
+      - db
     ports: 
       - "8081:5000"
     environment:
         DB_HOST: billing-db
     networks:
-      - gsnetwork
-    volumes:
-      - ./in:/in
+      - billing-network
 
 volumes:
   mysql-data: 
 
 networks:
-  gsnetwork:
-    external: true
+  billing-network:
