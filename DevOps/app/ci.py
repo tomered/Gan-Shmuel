@@ -64,6 +64,13 @@ def manage_env(action, env, branch='main'):
                 send_slack_message(f"❌ *Action `{action}` failed for `{service}`*.\n\n*Error Output:*\n```{e.stderr.strip()}```")
                 results[service] = e  # Store error object for later inspection
 
+        if action == 'down':
+            cleanup_result = subprocess.run(["docker", "container", "prune", "-f"], check=True, capture_output=True, text=True)
+            
+            app.logger.info("Removing all stopped containers...")
+            app.logger.info(f"Cleanup result: {cleanup_result.stdout.strip()}")
+
+
         app.logger.info(f"Action `{action}` completed. Check results for any failures.")
         return results
 
