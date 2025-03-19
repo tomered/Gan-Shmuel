@@ -1,0 +1,8 @@
+transaction:
+truck = license plate
+containers = id's -> check with container db for weights
+bruto = weight when direction is "in"
+trucktara = weight when direction is "out"
+neto = bruto - tara - sum(containers)
+produce = fruits
+session_id = keep tracks of in and out transactions
