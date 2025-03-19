@@ -2,7 +2,10 @@ import os
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
+import datetime
 import pandas as pd
+import datetime
+import requests
 
 
 def get_db_connection():
@@ -11,7 +14,7 @@ def get_db_connection():
 
     try:
         conn = mysql.connector.connect(
-            host="db",
+            host="billing-db",
             user="root",
             password="secret",
             database="billdb",
@@ -25,8 +28,6 @@ def get_db_connection():
 app = Flask(__name__)
 
 # GET /health - Health check for app to db
-
-
 @app.route('/health', methods=["GET"])
 def health():
     # Connect to database
@@ -45,6 +46,7 @@ def health():
     # Error handling for connectivity is done in get_db_connection.
     except Exception as e:
         return "Failure", 500
+
 
 
 @app.route('/provider', methods=['POST'])
@@ -135,44 +137,56 @@ def add_rate():
         data = request.get_json()
         filename = data["filename"]
         filepath = f'/in/{filename}.xlsx'
-        
+
+        # Check if file exists
         if not os.path.exists(filepath):
             raise FileNotFoundError (f"Error: The file '{filepath}' does not exist")
-        
+
+        # Read data from excel file in /in dir
         data_frame = pd.read_excel(f"/in/{filename}.xlsx", engine = "openpyxl")
         file_data = data_frame.to_records(index=False).tolist()
 
+        # DB connection
         conn = get_db_connection() 
         cursor = conn.cursor(buffered=True)
 
         for rate in file_data:
+            # Create dictionary out of data
             row_dict = dict(zip(data_frame.columns, rate))
 
+            # If provider id is specified, check if provider exists
             if(row_dict["Scope"] != "All"):
                 cursor.execute("SELECT * FROM Provider WHERE id=%s", (row_dict["Scope"],))
                 existing_provider = cursor.fetchone()
                 if not existing_provider:
                     raise LookupError(f"Provider with ID {row_dict["Scope"]} does not exist")
-            
+
+            # Check if product for specified scope already exists
             cursor.execute("SELECT * FROM Rates WHERE product_id=%s AND scope=%s", (row_dict["Product"], row_dict["Scope"]))
             existing_product = cursor.fetchone()
 
+
+            status = None
+            # Update existing product
             if existing_product:
                 cursor.execute("UPDATE Rates SET rate=%s, scope=%s WHERE product_id=%s",(row_dict["Rate"], row_dict["Scope"], row_dict["Product"]))
+                status = 200
+            # Create new product
             else :
                 cursor.execute("INSERT INTO Rates (product_id, rate, scope) VALUES (%s, %s, %s)", (row_dict["Product"],row_dict["Rate"], row_dict["Scope"]))
-            
+                status = 201
+                
         conn.commit()
         cursor.close()
         conn.close()
 
     except LookupError as e :
-        return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
+        return jsonify({'error': str(e)}), 404  # Return 404 if provider is not found
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    return data
+    return data, status
 
     
 # POST /truck registers a truck in the system, provider - known provider id, 
@@ -212,6 +226,28 @@ def register_truck():
     
     return jsonify({"message": "Truck registered successfully"}), 201
 
+    
+@app.route('/truck/<id>', methods=['GET'])
+def get_truck_sessions(id):
+    t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
+
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+    if not id.strip():
+        return jsonify({"error": "Truck ID cannot be empty"}), 400
+    
+    api = f"http://web_weight:5000/item/{id}?from={t1}&to={t2}"
+    
+    response = requests.get(api)
+
+    if response.status_code == 200:
+        return response.json(), 200
+    elif response.status_code == 404:
+        return jsonify({"error": f"Truck with ID {id} not found"}), 404
+    else:
+        return jsonify({"error": f"External API error: {response.text}"}), response.status_code
+
+    
 # PUT /truck/{id}  can be used to update provider id 
 @app.route('/truck/<string:id>', methods=['PUT'])
 def update_truck(id):
@@ -285,6 +321,190 @@ def rates_download():
         return jsonify({"message": "Rates successfully downloaded to Excel", "file_path": excel_path}), 200
     except Exception as e:
         return jsonify({"error": f"Error downloading rates: {str(e)}"}), 500
+    
+@app.route('/bill/<id>', methods=['GET'])
+def get_bill(id):
+    if not id.strip():
+        return jsonify({"error": "Provider ID cannot be empty"}), 400
+
+    t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
+    success, result_or_error, name, truckCount, truckList, ratesList = get_billdb_data(id)
+    sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
+    product_stats = process_session_data(sessionListPerTruck,t1,t2)   
+
+    #Error checks on frunctions
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+    elif not success:
+        return jsonify({"error": result_or_error}), 404 if "not found" in result_or_error else 500
+    elif isinstance(sessionListPerTruck, str):
+        return jsonify({"error": sessionListPerTruck})
+    elif isinstance(product_stats, str):
+        return jsonify({"error": sessionListPerTruck})
+    
+    products = []
+    for product_id, rate, scope in ratesList:
+        amount = product_stats[product_id]["amount"]
+        count = product_stats[product_id]["count"]
+        products.append(create_product(product_id, count, amount, rate))
+
+    total_payment = sum(product["pay"] for product in products)
+
+    data = {
+        "id": id,
+        "name": name,
+        "from": t1,
+        "to": t2,
+        "truckCount": truckCount,
+        "sessionCount": sessionCount,
+        "products": products,
+        "total": total_payment
+    }
+
+    return jsonify(data), 201
+
+def process_session_data(sessionListPerTruck,t1,t2):
+    product_stats = {}
+    for truck, sessions in sessionListPerTruck.items():
+        for session_id in sessions:
+            try:
+                api = f"http://web_weight:5000/session/{session_id}?from={t1}&to={t2}"
+                response = requests.get(api)
+                session_data = response.json()
+
+                if "truckTara" in session_data:
+                    neto = session_data.get("neto")
+                    product = session_data.get("produce")
+                else:
+                    continue
+                if neto != "na":
+                    if product not in product_stats:
+                        product_stats[product] = {"count": 0, "amount": 0}
+
+                    product_stats[product]["count"] += 1
+                    product_stats[product]["amount"] += int(neto)
+
+            except requests.exceptions.RequestException as e:
+                return f"Error fetching data for truck {session_id}: {e}"
+            except Exception as e:
+                return f"Error processing truck {session_id}: {e}"
+            
+    return product_stats
+
+def get_session_list_per_truck(truckList,t1,t2):
+    truck_sessions_dict = {}
+    for truck in truckList:
+        try:
+            api = f"http://web_weight:5000/item/{truck}?from={t1}&to={t2}"
+            response = requests.get(api)
+            truck_data = response.json()
+            truck_sessions_dict[truck] = truck_data.get('sessions', [])
+
+        except requests.exceptions.RequestException as e:
+            return None, f"Error fetching data for truck {truck}: {e}"
+        except Exception as e:
+            return None, f"Error processing truck {truck}: {e}"
+        
+    total_sessions = sum(len(sessions) for sessions in truck_sessions_dict.values())
+    
+    return total_sessions, truck_sessions_dict
+
+def validate_time(t1, t2):
+    if t1 is None:
+        now = datetime.datetime.now()
+        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
+        except ValueError:
+            return None, None, ("Invalid 'from' date format. Use yyyymmddhhmmss", 400)
+        
+    if t2 is None:
+        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
+        except ValueError:
+            return None, None, ("Invalid 'to' date format. Use yyyymmddhhmmss", 400)
+    
+    if t1 > t2:
+        return None, None, ("Start time must be before end time", 400)
+    
+    return t1, t2, None
+
+def get_billdb_data(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # SQL query to get provider name and count trucks
+        name_and_count_query = """
+        SELECT 
+            p.name AS provider_name,
+            COUNT(t.id) AS truck_count
+        FROM 
+            Provider p
+        LEFT JOIN 
+            Trucks t ON p.id = t.provider_id
+        WHERE 
+            p.id = %s
+        GROUP BY 
+            p.id, p.name
+        """
+
+        trucks_query = """
+        SELECT
+            t.id, t.model, t.year, t.license_plate  # or whatever truck fields you need
+        FROM
+            Trucks t
+        WHERE
+            t.provider_id = %s
+        """
+
+        rates_query = """
+        SELECT r1.product_id, r1.rate
+        FROM Rates r1
+        WHERE 
+            (r1.scope = %s) OR
+            (r1.scope = 'all' AND NOT EXISTS (
+                SELECT 1 FROM Rates r2 
+                WHERE r2.product_id = r1.product_id AND r2.scope = %s
+            ))
+        ORDER BY r1.product_id
+        """
+
+        cursor.execute(name_and_count_query, (id,))
+        name_and_truckcount = cursor.fetchone()
+
+        cursor.execute(trucks_query, (id,))
+        trucks_list = cursor.fetchall()
+        
+        cursor.execute(trucks_query, (id,))
+        rates_list = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+            
+        if name_and_truckcount is not None and trucks_list is not None:
+            return True, True, name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list, rates_list
+        else:
+            # Provider not found
+            return False, "Provider not found, happend in get_billdb_data()", None, None, None, None
+        
+    except Exception as e:
+        # Database or other error
+        return False, f"Error retrieving data from database: {str(e)}", None, None, None, None
+    
+def create_product(product_name, session_count, amount_kg, rate_agorot):
+    pay = amount_kg * rate_agorot
+    return {
+        "product": product_name,
+        "count": str(session_count),  # Must be a string per the spec
+        "amount": amount_kg,          # Total kg (integer)
+        "rate": rate_agorot,          # Price in agorot (integer)
+        "pay": pay                    # Total payment in agorot (integer)
+}
+
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
