@@ -157,9 +157,16 @@ def ci_pipeline(payload):
             send_slack_message(f"✅ *CI unit tests passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
             
             if branch.lower() == 'main':
+                res = subprocess.run(
+                    'docker network inspect prod_network >/dev/null 2>&1 || docker network create prod_network',
+                    shell=True,
+                    check=True
+                )
+                app.logger.info({res})
                 result_down = manage_env(action='down', env='prod')
                 result_up = manage_env(action='up', env='prod')
                 app.logger.info("Finished deploying prod")
+                
             else:
                 app.logger.info("Branch is not main. Not deploying app")
 
