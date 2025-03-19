@@ -208,11 +208,7 @@ def info_insert():
     return {"Error": "Page Not Found, try different route"}, 404
  
 
-'''
-#GET /unknown
-Returns a list of all recorded containers that have unknown weight:
-["id1","id2",...]
-'''
+
 @app.route('/unknown', methods=['GET'])
 def get_unknown():
     
