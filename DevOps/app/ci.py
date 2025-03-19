@@ -1,12 +1,11 @@
 from flask import Flask, request, jsonify
+from dotenv import load_dotenv
 import subprocess
 import threading
-import json
-import logging
-import time
-import os
 import requests
-from dotenv import load_dotenv
+import logging
+import json
+import os
 
 load_dotenv()  # Load .env file if it exists
 
@@ -72,16 +71,18 @@ def ci_pipeline(payload):
         app.logger.info(
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
 
-        if branch.lower() not in PROD_YAML_PATHS:
+
+        if branch.lower() in PROD_YAML_PATHS:
+            app.logger.info(f"Pulling latest code for '{branch}'...")
+            subprocess.run(["git", "checkout", branch], check=True)
+            subprocess.run(["git", "pull", "origin", branch], check=True)
+
+            app.logger.info(f"Running tests in container for '{branch}'...")
+        else:
             app.logger.info(f"No CI setup for branch: {branch}")
-            # return jsonify({"status": "No ci setup"}), 400
-
-        app.logger.info(f"Pulling latest code for '{branch}'...")
-        subprocess.run(["git", "checkout", branch], check=True)
-        subprocess.run(["git", "pull", "origin", branch], check=True)
-
-        app.logger.info(f"Running tests in container for '{branch}'...")
-
+            return f"No CI setup for branch {branch}."
+            
+        
         # Change to run tests in future
         result = subprocess.run([
             "docker", "run",
