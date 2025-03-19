@@ -58,6 +58,19 @@ def get_item(id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/batch-weight", methods=["POST"])
+def containers_insert():
+    file = request.files["file"]
+    if not file:
+        return {"error": "No file part in the request"}, 400
+    allowed_extensions = {".csv", ".json"}
+    file_extension = os.path.splitext(file.filename)[1].lower()  # Get the file extension in lowercase
+    if file_extension not in allowed_extensions:
+        return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
+
+    # Save or process the file
+    file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
+    return {"filename": file.filename, "message": "File uploaded successfully"}
 
 # http://localhost:5000/session/1619874477.123456
 @app.route("/session/<id>", methods=["GET"])
