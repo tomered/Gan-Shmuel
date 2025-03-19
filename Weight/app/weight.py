@@ -10,9 +10,6 @@ mydb = db.connect_db()
 cursor = mydb.cursor(dictionary=True, buffered=True)
 
 
-
-
-
 @app.route('/')
 def home():
     return "Hello, Welcome to weight software!"
@@ -35,12 +32,12 @@ def get_item(id):
         query = """
         SELECT 
             truck, 
-            truckTara, 
+            MAX(truckTara) AS truckTara, 
             GROUP_CONCAT(DISTINCT session ORDER BY session SEPARATOR ', ') AS sessions
         FROM transactions
         WHERE datetime BETWEEN %s AND %s
         AND truck = %s
-        GROUP BY truck, truckTara
+        GROUP BY truck
         """
         params = (from_time, to_time, id) 
 
@@ -57,22 +54,33 @@ def get_item(id):
         return jsonify({"error": str(e)}), 500
 
 
-
 # http://localhost:5000/session/1619874477.123456
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):
-    session = next((item for item in sessions_data if item['id'] == id), None)
-    if not session:
-        return jsonify({"error": "Session not found"}), 404
-    response = {
-        "id": session["id"],
-        "direction": session["direction"],
-        "bruto": session["bruto"],
-    }
-    if session["direction"] == "out":
-        response["truckTara"] = 1000
-        response["neto"] = session["neto"] if session["neto"] != "na" else "na"
-    return jsonify(response), 200
+
+    cursor.execute("SELECT truck FROM transactions WHERE session = %s", (id,))
+    id_check = cursor.fetchone()  # Fetch one result 
+
+    if not id_check:
+        return jsonify({"error": "Item not found"}), 404 
+
+    query = """
+    SELECT session, truck,
+      MAX(bruto) AS bruto,
+      MAX(produce) AS produce,
+      MAX(truckTara) AS truckTara,
+      MAX(neto) AS neto 
+        FROM transactions
+        WHERE session = %s
+        GROUP BY session, truck
+        """
+
+    cursor.execute(query, (id,))
+    result = cursor.fetchone()
+
+
+    return jsonify(result)
+
 
 @app.route('/health', methods=['GET'])
 def healthcheck():
