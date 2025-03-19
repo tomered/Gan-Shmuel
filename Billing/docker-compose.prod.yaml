@@ -9,7 +9,7 @@ services:
       MYSQL_USER: billing-user
       MYSQL_PASSWORD: secret
     networks:
-      - gsnetwork
+      - prod_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -26,7 +26,7 @@ services:
     environment:
         DB_HOST: billing-db
     networks:
-      - gsnetwork
+      - prod_network
     volumes:
       - ./in:/in
 
@@ -34,5 +34,5 @@ volumes:
   mysql-data: 
 
 networks:
-  gsnetwork:
+  prod_network:
     external: true
