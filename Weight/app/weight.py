@@ -1,15 +1,15 @@
+import json
 from flask import Flask, request, jsonify
 from datetime import datetime
 import mysql.connector
 import db
+import os
+
 
 app = Flask(__name__)
 
 mydb = db.connect_db()
-
-cursor = mydb.cursor(dictionary=True, buffered=True)
-
-
+cursor = mydb.cursor(dictionary=True)
 
 
 
@@ -17,45 +17,40 @@ cursor = mydb.cursor(dictionary=True, buffered=True)
 def home():
     return "Hello, Welcome to weight software!"
 
+
+# http://localhost:5000/item/truck1?from=20230301000000&to=20230302235959
 @app.route("/item/<id>", methods=["GET"])
 def get_item(id):
+    from_param = request.args.get('from', default="20230301000000")
+    to_param = request.args.get('to', default=str(
+        datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
     try:
-       
-        from_time = request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000")
-        to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+        t1 = datetime.datetime.strptime(from_param, '%Y%m%d%H%M%S')
+        t2 = datetime.datetime.strptime(to_param, '%Y%m%d%H%M%S')
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Expected format: yyyymmddhhmmss"}), 400
+    if id not in items_data:
+        return jsonify({"error": "Item not found"}), 404
+    item_data = items_data[id]
+    return jsonify({
+        "id": id,
+        "tara": item_data["tara"],
+        "sessions": item_data["sessions"]
+    }), 200
 
+@app.route("/batch-weight", methods=["POST"])
+def containers_insert():
+    file = request.files["file"]
+    if not file:
+        return {"error": "No file part in the request"}, 400
+    allowed_extensions = {".csv", ".json"}
+    file_extension = os.path.splitext(file.filename)[1].lower()  # Get the file extension in lowercase
+    if file_extension not in allowed_extensions:
+        return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
 
-        cursor.execute("SELECT truck FROM transactions WHERE truck = %s", (id,))
-        id_check = cursor.fetchone()  # Fetch one result 
-
-        if not id_check:
-            return jsonify({"error": "Item not found"}), 404 
-
-        # Construct SQL query
-        query = """
-        SELECT 
-            truck, 
-            truckTara, 
-            GROUP_CONCAT(DISTINCT session ORDER BY session SEPARATOR ', ') AS sessions
-        FROM transactions
-        WHERE datetime BETWEEN %s AND %s
-        AND truck = %s
-        GROUP BY truck, truckTara
-        """
-        params = (from_time, to_time, id) 
-
-        cursor.execute(query, params)
-        result = cursor.fetchone()
-
-
-        return jsonify(result)
-    
-    except mysql.connector.Error as e:
-        return jsonify({"error": str(e)}), 500
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+    # Save or process the file
+    file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
+    return {"filename": file.filename, "message": "File uploaded successfully"}
 
 
 # http://localhost:5000/session/1619874477.123456
@@ -74,7 +69,7 @@ def get_session(id):
         response["neto"] = session["neto"] if session["neto"] != "na" else "na"
     return jsonify(response), 200
 
-@app.route('/health', methods=['GET'])
+@app.route('/health', methods=['GET']) ##DONE
 def healthcheck():
       if mydb.is_connected():
         cursor.execute("SELECT 1;") 
@@ -83,7 +78,7 @@ def healthcheck():
       else:
           return "Failure", 500
 
-@app.route('/weight', methods=['GET'])
+@app.route('/weight', methods=['GET']) ##DONE
 def get_weight():
 
     from_time = request.args.get('from',datetime.now().strftime("%Y%m%d") + "000000")
@@ -109,9 +104,7 @@ def get_weight():
     except mysql.connector.Error as e:
         return jsonify({"error": str(e)}), 500
 
-
-
-@app.route('/weight', methods=['POST'])
+@app.route('/weight', methods=['POST']) ##DONE
 def info_insert():
     # Ensure correct Content-Type
     if request.content_type != 'application/json':
@@ -215,11 +208,7 @@ def info_insert():
     return {"Error": "Page Not Found, try different route"}, 404
  
 
-'''
-#GET /unknown
-Returns a list of all recorded containers that have unknown weight:
-["id1","id2",...]
-'''
+
 @app.route('/unknown', methods=['GET'])
 def get_unknown():
     
