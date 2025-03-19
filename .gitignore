@@ -1,5 +1,5 @@
-.DS_Store
-
+*.DS_Store
+*.venv
 
 # DEVOPS
 *__pycache__*
@@ -9,3 +9,15 @@
 # BILLING
 
 # WEIGHT
+./Weight/app/bin/*
+./Weight/app/include/*
+./Weight/app/lib/*
+./Weight/app/lib64/*
+./Weight/app/pyvenv.cfg
+./Weight/db/backup/*
+*.pyc
+__pycache__/
+*.pyo
+*.log
+.env
+
