@@ -330,6 +330,7 @@ def get_bill(id):
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
     success, result_or_error, name, truckCount, truckList = get_billdb_data(id)
     sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
+    product_stats = process_session_data(sessionListPerTruck,t1,t2)   #product_stats[product] = {"count": 0, "amount": 0}
 
     #Error checks on frunctions
     if error:
@@ -338,12 +339,9 @@ def get_bill(id):
         return jsonify({"error": result_or_error}), 404 if "not found" in result_or_error else 500
     elif isinstance(sessionListPerTruck, str):
         return jsonify({"error": sessionListPerTruck})
+    elif isinstance(product_stats, str):
+        return jsonify({"error": sessionListPerTruck})
     
-    products = [
-        create_product("Apples", 2, 500, 250),
-        create_product("Oranges", 1, 300, 320),
-        create_product("Grapes", 3, 200, 450)
-    ]
     total_payment = sum(product["pay"] for product in products)
 
     data = {
@@ -356,16 +354,45 @@ def get_bill(id):
         "products": products,
         "total": total_payment
     }
-    
+
+def process_session_data(sessionListPerTruck,t1,t2):
+    product_stats = {}
+    for truck, sessions in sessionListPerTruck.items():
+        for session_id in sessions:
+            try:
+                api = f"http://web_weight:5000/session/{session_id}?from={t1}&to={t2}"
+                response = requests.get(api)
+                session_data = response.json()
+
+                #TODO: do i count the not out sessions?
+                if "truckTara" in session_data:
+                    neto = session_data.get("neto")
+                    product = session_data.get("produce")
+                else:
+                    continue
+                #TODO: what is product equals na?
+                if neto != "na":
+                    if product not in product_stats:
+                        product_stats[product] = {"count": 0, "amount": 0}
+
+                    product_stats[product]["count"] += 1
+                    product_stats[product]["amount"] += int(neto)
+
+            except requests.exceptions.RequestException as e:
+                return f"Error fetching data for truck {session_id}: {e}"
+            except Exception as e:
+                return f"Error processing truck {session_id}: {e}"
+            
+    return product_stats
+
 def get_session_list_per_truck(truckList,t1,t2):
     truck_sessions_dict = {}
     for truck in truckList:
         try:
-            truck_id = truck['id']
-            api = f"http://web_weight:5000/item/{truck_id}?from={t1}&to={t2}"
+            api = f"http://web_weight:5000/item/{truck}?from={t1}&to={t2}"
             response = requests.get(api)
             truck_data = response.json()
-            truck_sessions_dict[truck_id] = truck_data.get('sessions', [])
+            truck_sessions_dict[truck] = truck_data.get('sessions', [])
 
         except requests.exceptions.RequestException as e:
             return None, f"Error fetching data for truck {truck_id}: {e}"
