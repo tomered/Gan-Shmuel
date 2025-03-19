@@ -63,28 +63,32 @@ def get_item(id):
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):
 
-    cursor.execute("SELECT truck FROM transactions WHERE session = %s", (id,))
-    id_check = cursor.fetchone()  # Fetch one result 
+    try:
+        cursor.execute("SELECT truck FROM transactions WHERE session = %s", (id,))
+        id_check = cursor.fetchone()  # Fetch one result 
 
-    if not id_check:
-        return jsonify({"error": "Item not found"}), 404 
+        if not id_check:
+            return jsonify({"error": "Item not found"}), 404 
 
-    query = """
-    SELECT session, truck,
-      MAX(bruto) AS bruto,
-      MAX(produce) AS produce,
-      MAX(truckTara) AS truckTara,
-      MAX(neto) AS neto 
-        FROM transactions
-        WHERE session = %s
-        GROUP BY session, truck
-        """
+        query = """
+        SELECT session, truck,
+        MAX(bruto) AS bruto,
+        MAX(produce) AS produce,
+        MAX(truckTara) AS truckTara,
+        MAX(neto) AS neto 
+            FROM transactions
+            WHERE session = %s
+            GROUP BY session, truck
+            """
 
-    cursor.execute(query, (id,))
-    result = cursor.fetchone()
+        cursor.execute(query, (id,))
+        result = cursor.fetchone()
 
 
-    return jsonify(result)
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/health', methods=['GET']) ##DONE
