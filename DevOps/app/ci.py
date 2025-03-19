@@ -44,6 +44,17 @@ def manage_env(action, env, branch='main'):
         else:
             services = [branch]
 
+
+        res_network = subprocess.run(
+            f"docker network inspect {env}_network >/dev/null 2>&1 || docker network create {env}_network",
+            shell=True,
+            check=True,
+            capture_output=True
+        )
+
+        app.logger.info(res_network)
+
+
         results = {}
         for service in services:
             try:
@@ -107,6 +118,7 @@ def check_yaml_path(service):
 
     return True
 
+
 def send_slack_message(text):
     if not SLACK_WEBHOOK_URL:
         app.logger.warning("Slack webhook URL not set.")
@@ -165,12 +177,6 @@ def ci_pipeline(payload):
             send_slack_message(f"✅ *CI unit tests passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
             
             if branch.lower() == 'main':
-                res = subprocess.run(
-                    'docker network inspect prod_network >/dev/null 2>&1 || docker network create prod_network',
-                    shell=True,
-                    check=True
-                )
-                app.logger.info({res})
                 result_down = manage_env(action='down', env='prod')
                 result_up = manage_env(action='up', env='prod')
                 app.logger.info("Finished deploying prod")
