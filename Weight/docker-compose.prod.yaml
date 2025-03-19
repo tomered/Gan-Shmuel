@@ -31,4 +31,6 @@ networks:
   gsnetwork:
 
 volumes:
-  gsdata: {}
+  gsdata:
+
+  # ./app/: {}
