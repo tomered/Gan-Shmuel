@@ -1,9 +1,11 @@
 import json
 from flask import Flask, request, jsonify
 from datetime import datetime
+from io import TextIOWrapper
 import mysql.connector
 import db
 import os
+import csv
 
 
 app = Flask(__name__)
@@ -72,10 +74,62 @@ def containers_insert():
     file_extension = os.path.splitext(file.filename)[1].lower()  # Get the file extension in lowercase
     if file_extension not in allowed_extensions:
         return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
+    
+    mysql = db.connect_db()
+    cursor = mysql.cursor(dictionary=True)
+    
+    def insert_into_db(container_id, weight, unit):
+        try:
+            cursor.execute(
+                """
+                INSERT INTO containers_registered (container_id, weight, unit)
+                VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE weight = VALUES(weight) """,
+                (container_id, weight, unit)
+            )
 
-    # Save or process the file
-    file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
-    return {"filename": file.filename, "message": "File uploaded successfully"}
+            mysql.commit()
+        except Exception as e:
+            print(f"Error inserting into database: {str(e)}")
+
+
+    try:
+        # Process CSV files
+        if file_extension == ".csv":
+            csv_reader = csv.DictReader(TextIOWrapper(file.stream, encoding="utf-8"))
+            headers = next(csv_reader)  # Extract the first line as headers
+            unit_type = "lbs" if "lbs" in headers else 'kg'
+            for row in csv_reader:
+                container_id = row.get("id")
+                if unit_type == "lbs":
+                    weight = int(row.get("lbs"))
+                    weight=convert_weight(weight)
+                else:
+                    weight = int(row.get("kg"))
+                unit='kg'
+                insert_into_db(container_id, weight, unit)
+
+
+        # Process JSON files
+        elif file_extension == ".json":
+            data = json.load(file.stream)
+            for entry in data:
+                container_id = entry.get("id")
+                weight = int(entry.get("weight"))
+                unit = entry.get("unit")
+                if unit == "lbs":
+                    weight=convert_weight(weight)
+                    unit="kg"
+                # Insert each entry into the database
+                insert_into_db(container_id, weight, unit)
+
+        # file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
+        return jsonify({"message": "File processed and data inserted successfully!"}), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 # http://localhost:5000/session/1619874477.123456
 @app.route("/session/<id>", methods=["GET"])
@@ -193,8 +247,16 @@ def info_insert():
             return {"error": "An active 'in' session already exists. Use force=true to overwrite."}, 500
         # Insert a new "in" session
         session_id= fetch_session_id()
-        if not force:
-            session_id +=1
+        cursor.execute(""" SELECT truck FROM transactions WHERE truck = %s AND direction = 'in' LIMIT 1; """, (truck, ))
+        truck_exist = cursor.fetchone()
+        if force and truck_exist: ## add check for the same trackid
+            cursor.execute("UPDATE transactions "
+                "SET session = %s, truck = %s, direction = %s, bruto = %s, datetime = %s, containers = %s, produce = %s "
+                "WHERE truck = %s",
+                (session_id, truck, direction, weight, current_date, containers, produce, truck))
+            mysql.commit()
+            return {"session": session_id, "truck": truck, "bruto": weight}, 200
+        session_id +=1
         cursor.execute("INSERT INTO transactions (session, truck, direction, bruto, datetime, containers, produce) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, weight, current_date, containers, produce))
         mysql.commit()

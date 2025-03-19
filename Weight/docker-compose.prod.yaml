@@ -8,7 +8,7 @@ services:
     build: ./app/
     container_name: webapp_gs
     networks:
-      - gsnetwork
+      - prod_network 
     ports:
       - "8082:5000"
 
@@ -18,7 +18,7 @@ services:
     build: ./db/
     container_name: db_gs
     networks:
-      - gsnetwork
+      - prod_network 
     volumes:
       - gsdata:/var/lib/mysql ##note -this is named volume!!
     healthcheck:
