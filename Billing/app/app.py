@@ -191,7 +191,7 @@ def get_truck_sessions(id):
     if not id.strip():
         return jsonify({"error": "Truck ID cannot be empty"}), 400
     
-    api = f"http://idontknow:8082/item/{id}?from={t1}&to={t2}"
+    api = f"http://43.205.160.125:8082/item/{id}?from={t1}&to={t2}"
     
     response = requests.get(api)
 
