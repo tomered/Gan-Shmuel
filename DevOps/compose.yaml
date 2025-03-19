@@ -1,0 +1,18 @@
+services:
+  ci:
+    container_name: my-ci
+    build: ./app
+    # working_dir: /Gan-Shmuel
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # - ~/Gan-Shmuel:/Gan-Shmuel
+    # command: sh -c "git clone https://github.com/tomered/Gan-Shmuel.git /Gan-Shmuel && flask run"
+    environment:
+      - SLACK_WEBHOOK_URL
+    ports:
+      - 8080:5000
+    networks:
+      - gan-shmuel
+
+networks:
+  gan-shmuel:
