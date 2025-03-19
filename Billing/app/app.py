@@ -135,44 +135,56 @@ def add_rate():
         data = request.get_json()
         filename = data["filename"]
         filepath = f'/in/{filename}.xlsx'
-        
+
+        # Check if file exists
         if not os.path.exists(filepath):
             raise FileNotFoundError (f"Error: The file '{filepath}' does not exist")
-        
+
+        # Read data from excel file in /in dir
         data_frame = pd.read_excel(f"/in/{filename}.xlsx", engine = "openpyxl")
         file_data = data_frame.to_records(index=False).tolist()
 
+        # DB connection
         conn = get_db_connection() 
         cursor = conn.cursor(buffered=True)
 
         for rate in file_data:
+            # Create dictionary out of data
             row_dict = dict(zip(data_frame.columns, rate))
 
+            # If provider id is specified, check if provider exists
             if(row_dict["Scope"] != "All"):
                 cursor.execute("SELECT * FROM Provider WHERE id=%s", (row_dict["Scope"],))
                 existing_provider = cursor.fetchone()
                 if not existing_provider:
                     raise LookupError(f"Provider with ID {row_dict["Scope"]} does not exist")
-            
+
+            # Check if product for specified scope already exists
             cursor.execute("SELECT * FROM Rates WHERE product_id=%s AND scope=%s", (row_dict["Product"], row_dict["Scope"]))
             existing_product = cursor.fetchone()
 
+
+            status = None
+            # Update existing product
             if existing_product:
                 cursor.execute("UPDATE Rates SET rate=%s, scope=%s WHERE product_id=%s",(row_dict["Rate"], row_dict["Scope"], row_dict["Product"]))
+                status = 200
+            # Create new product
             else :
                 cursor.execute("INSERT INTO Rates (product_id, rate, scope) VALUES (%s, %s, %s)", (row_dict["Product"],row_dict["Rate"], row_dict["Scope"]))
-            
+                status = 201
+                
         conn.commit()
         cursor.close()
         conn.close()
 
     except LookupError as e :
-        return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
+        return jsonify({'error': str(e)}), 404  # Return 404 if provider is not found
     except FileNotFoundError as e:
         return jsonify({'error': str(e)}), 404  # Return 404 if file is not found
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    return data
+    return data, status
 
     
 # POST /truck registers a truck in the system, provider - known provider id, 
