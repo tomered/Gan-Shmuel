@@ -22,28 +22,63 @@ PROD_YAML_PATHS = {
 
 
 def takedown_prod(param='all'):
-    app.logger.info("Taking down old prod")
-    if param == 'all':
-        subprocess.run(['docker', 'compose', '-f',
-                        PROD_YAML_PATHS['billing'], 'down'], check=True)
-        subprocess.run(['docker', 'compose', '-f',
-                        PROD_YAML_PATHS['weight'], 'down'], check=True)
-    else:
-        subprocess.run(['docker', 'compose', '-f',
-                        PROD_YAML_PATHS[param], 'down'], check=True)
+    app.logger.info("Taking down old prod...")
+    try:
+        if param == 'all':
+            billing = subprocess.run(
+                ['docker', 'compose', '-f', PROD_YAML_PATHS['billing'], 'down'],
+                check=True, capture_output=True, text=True
+            )
+            weight = subprocess.run(
+                ['docker', 'compose', '-f', PROD_YAML_PATHS['weight'], 'down'],
+                check=True, capture_output=True, text=True
+            )
+            return billing, weight
+        else:
+            main = subprocess.run(
+                ['docker', 'compose', '-f', PROD_YAML_PATHS[param], 'down'],
+                check=True, capture_output=True, text=True
+            )
+            return main
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"Error taking down '{param}': {e.stderr}")
+        return e  # Return exception object for further handling
 
 
 def deploy_prod(param='all'):
     app.logger.info("Tests passed. Deploying to prod...")
-    if param == 'all':
-        subprocess.run(["docker", "compose", "-f",
-                        PROD_YAML_PATHS['billing'], "up", "-d", "--build"], check=True, capture_output=True)
-        subprocess.run(["docker", "compose", "-f",
-                        PROD_YAML_PATHS['weight'], "up", "-d", "--build"], check=True, capture_output=True)
-    else:
-        subprocess.run(["docker", "compose", "-f",
-                        PROD_YAML_PATHS[param], "up", "-d", "--build"], check=True, capture_output=True)
-    app.logger.info("Deployment complete.")
+
+    try:
+        if param == 'all':
+            app.logger.info("Deploying billing service...")
+            billing = subprocess.run(
+                ["docker", "compose", "-f", PROD_YAML_PATHS['billing'], "up", "-d", "--build"],
+                check=True, capture_output=True, text=True
+            )
+
+            app.logger.info("Deploying weight service...")
+            weight = subprocess.run(
+                ["docker", "compose", "-f", PROD_YAML_PATHS['weight'], "up", "-d", "--build"],
+                check=True, capture_output=True, text=True
+            )
+
+            app.logger.info("Deployment complete.")
+            return billing, weight
+
+        else:
+            app.logger.info(f"Deploying `{param}` service...")
+            service = subprocess.run(
+                ["docker", "compose", "-f", PROD_YAML_PATHS[param], "up", "-d", "--build"],
+                check=True, capture_output=True, text=True
+            )
+
+            app.logger.info(f"Deployment of `{param}` complete.")
+            return service
+
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"Deployment error for `{param}`: {e.stderr.strip()}")
+        send_slack_message(f"❌ *Deployment failed for `{param}`*.\n\n*Error Output:*\n```{e.stderr.strip()}```")
+        return e  # Return the exception object for further handling
 
 
 def send_slack_message(text):
@@ -94,15 +129,14 @@ def ci_pipeline(payload):
         app.logger.info("Finished running tests")
 
         if result.returncode == 0:
+            send_slack_message(f"✅ *CI passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
+
             if branch.lower() == 'main':
                 if (os.path.isfile(PROD_YAML_PATHS["billing"]) and os.path.isfile(PROD_YAML_PATHS["weight"])):
-                    takedown_prod()
-                    deploy_prod()
+                    takedown_res = takedown_prod()
+                    deploy_res = deploy_prod()
             else:
                 app.logger.info("Branch is not main. Not deploying app")
-
-            send_slack_message(
-                f"✅ *CI passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
         else:
             app.logger.info("Tests failed.")
             send_slack_message(
