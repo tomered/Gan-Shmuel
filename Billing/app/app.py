@@ -330,7 +330,6 @@ def get_bill(id):
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
     success, result_or_error, name, truckCount, truckList, ratesList = get_billdb_data(id)
     sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
-    #Format: product_stats[product] = {"count": 0, "amount": 0}
     product_stats = process_session_data(sessionListPerTruck,t1,t2)   
 
     #Error checks on frunctions
@@ -347,7 +346,7 @@ def get_bill(id):
     for product_id, rate, scope in ratesList:
         amount = product_stats[product_id]["amount"]
         count = product_stats[product_id]["count"]
-        products.add(create_product(product_id, count, amount, rate))
+        products.append(create_product(product_id, count, amount, rate))
 
     total_payment = sum(product["pay"] for product in products)
 
@@ -361,6 +360,8 @@ def get_bill(id):
         "products": products,
         "total": total_payment
     }
+
+    return jsonify(data), 201
 
 def process_session_data(sessionListPerTruck,t1,t2):
     product_stats = {}
