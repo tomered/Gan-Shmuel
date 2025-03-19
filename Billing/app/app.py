@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
 import pandas as pd
+import datetime
 
 
 def get_db_connection():
@@ -236,6 +237,101 @@ def rates_download():
         return jsonify({"message": "Rates successfully downloaded to Excel", "file_path": excel_path}), 200
     except Exception as e:
         return jsonify({"error": f"Error downloading rates: {str(e)}"}), 500
+    
+@app.route('/bill/<id>', methods=['GET'])
+def get_truck_sessions(id):
+    t1 = request.args.get('from')
+    t2 = request.args.get('to')
+    
+    if t1 is None:
+        now = datetime.datetime.now()
+        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
+        except ValueError:
+            return jsonify({"error": "Invalid 'from' date format. Use yyyymmddhhmmss"}), 400
+            
+    if t2 is None:
+        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
+        except ValueError:
+            return jsonify({"error": "Invalid 'to' date format. Use yyyymmddhhmmss"}), 400
+    
+    if t1 > t2:
+        return jsonify({"error": "Start time must be before end time"}), 400
+
+    if not id.strip():
+        return jsonify({"error": "Truck ID cannot be empty"}), 400
+
+
+    products = [
+        create_product("Apples", 2, 500, 250),
+        create_product("Oranges", 1, 300, 320),
+        create_product("Grapes", 3, 200, 450)
+    ]
+    total_payment = sum(product["pay"] for product in products)
+
+    data = {
+        "id": id,
+        "name": "Farm Delivery",
+        "from": t1,
+        "to": t2,
+        "truckCount": 3,
+        "sessionCount": sum(int(p["count"]) for p in products),
+        "products": products,
+        "total": total_payment
+    }
+
+def get_provider_data(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # SQL query to get provider name and count trucks
+        query = """
+        SELECT 
+            p.name AS provider_name,
+            COUNT(t.id) AS truck_count
+        FROM 
+            Provider p
+        LEFT JOIN 
+            Trucks t ON p.id = t.provider_id
+        WHERE 
+            p.id = %s
+        GROUP BY 
+            p.id, p.name
+        """
+
+        cursor.execute(query, (id,))
+        
+        result = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+            
+        if result is not None:
+            return result["name"], result["truckCount"]
+        else:
+            # Provider not found
+            return jsonify({"error": "Provider not found"}), 404
+        
+    except Exception as e:
+        # Database or other error
+        return jsonify({"error": "Error retrieving data from database"}), 500
+    
+def create_product(product_name, session_count, amount_kg, rate_agorot):
+    pay = amount_kg * rate_agorot
+    return {
+        "product": product_name,
+        "count": str(session_count),  # Must be a string per the spec
+        "amount": amount_kg,          # Total kg (integer)
+        "rate": rate_agorot,          # Price in agorot (integer)
+        "pay": pay                    # Total payment in agorot (integer)
+}
+
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
