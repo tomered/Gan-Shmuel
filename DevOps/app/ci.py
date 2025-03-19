@@ -64,17 +64,17 @@ def ci_pipeline(payload):
         data = json.loads(payload)
         full_ref = data.get("ref", "")
         branch = full_ref.split("/")[-1]
+
+        if branch.lower() not in PROD_YAML_PATHS:
+            app.logger.info(f"No CI setup for branch: {branch}")
+            return f"No CI setup for branch: {branch}"
+
         commit_hash = data["after"][:7]
         pusher_name = data["pusher"]["name"]
         pusher_email = data["pusher"]["email"]
 
         app.logger.info(
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
-
-
-        if branch.lower() not in PROD_YAML_PATHS:
-            app.logger.info(f"No CI setup for branch: {branch}")
-            return f"No CI setup for branch: {branch}"
 
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], check=True)
