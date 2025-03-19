@@ -4,6 +4,7 @@ import mysql.connector
 from mysql.connector import Error
 import pandas as pd
 import datetime
+import requests
 
 
 def get_db_connection():
@@ -244,21 +245,17 @@ def get_bill(id):
         return jsonify({"error": "Provider ID cannot be empty"}), 400
 
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
+    success, result_or_error, name, truckCount, truckList = get_billdb_data(id)
+    sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
 
+    #Error checks on frunctions
     if error:
         return jsonify({"error": error[0]}), error[1]
-
-    success, result_or_error, name, truckCount, truckList = get_billdb_data(id)
-
-    if not success:
+    elif not success:
         return jsonify({"error": result_or_error}), 404 if "not found" in result_or_error else 500
-
-    sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
-
-    if isinstance(sessionListPerTruck, str):
+    elif isinstance(sessionListPerTruck, str):
         return jsonify({"error": sessionListPerTruck})
     
-
     products = [
         create_product("Apples", 2, 500, 250),
         create_product("Oranges", 1, 300, 320),
@@ -272,7 +269,7 @@ def get_bill(id):
         "from": t1,
         "to": t2,
         "truckCount": truckCount,
-        "sessionCount": sum(int(p["count"]) for p in products),
+        "sessionCount": sessionCount,
         "products": products,
         "total": total_payment
     }
@@ -282,17 +279,19 @@ def get_session_list_per_truck(truckList,t1,t2):
     for truck in truckList:
         try:
             truck_id = truck['id']
-
-            response = requests.get(f"{base_url}/item/{truck_id}?from={t1}&to={t2}")
+            api = f"http://web_weight:5000/item/{truck_id}?from={t1}&to={t2}"
+            response = requests.get(api)
             truck_data = response.json()
             truck_sessions_dict[truck_id] = truck_data.get('sessions', [])
 
         except requests.exceptions.RequestException as e:
-            return f"Error fetching data for truck {truck_id}: {e}"
+            return None, f"Error fetching data for truck {truck_id}: {e}"
         except Exception as e:
-            return f"Error processing truck {truck_id}: {e}"
+            return None, f"Error processing truck {truck_id}: {e}"
+        
+    total_sessions = sum(len(sessions) for sessions in truck_sessions_dict.values())
     
-    return truck_sessions_dict
+    return total_sessions, truck_sessions_dict
 
 def validate_time(t1, t2):
     if t1 is None:
