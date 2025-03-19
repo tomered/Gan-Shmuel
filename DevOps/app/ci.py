@@ -66,7 +66,7 @@ def manage_env(action, env, branch='main'):
 
         if action == 'down':
             cleanup_result = subprocess.run(["docker", "container", "prune", "-f"], check=True, capture_output=True, text=True)
-            
+
             app.logger.info("Removing all stopped containers...")
             app.logger.info(f"Cleanup result: {cleanup_result.stdout.strip()}")
 
@@ -136,15 +136,16 @@ def ci_pipeline(payload):
 
         app.logger.info(
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
+        
+        app.logger.info(f"Pulling latest code for '{branch}'...")
+        subprocess.run(["git", "checkout", branch], check=True)
+        subprocess.run(["git", "pull", "origin", branch], check=True)
 
         app.logger.info("Check if docker-compose YAML files exist")
         if (not check_yaml_path(branch)):
             return "Missing files"
         
 
-        app.logger.info(f"Pulling latest code for '{branch}'...")
-        subprocess.run(["git", "checkout", branch], check=True)
-        subprocess.run(["git", "pull", "origin", branch], check=True)
 
         app.logger.info(f"Running tests in container for '{branch}'...")
             
