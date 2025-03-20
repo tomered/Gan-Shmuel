@@ -328,25 +328,34 @@ def get_bill(id):
         return jsonify({"error": "Provider ID cannot be empty"}), 400
 
     t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
-    success, result_or_error, name, truckCount, truckList, ratesList = get_billdb_data(id)
-    sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
-    product_stats = process_session_data(sessionListPerTruck,t1,t2)   
 
-    #Error checks on frunctions
     if error:
         return jsonify({"error": error[0]}), error[1]
-    elif not success:
+
+    success, result_or_error, name, truckCount, truckList, ratesList = get_billdb_data(id)
+
+    if not success:
         return jsonify({"error": result_or_error}), 404 if "not found" in result_or_error else 500
-    elif isinstance(sessionListPerTruck, str):
+    
+    sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
+
+    if isinstance(sessionListPerTruck, str):
         return jsonify({"error": sessionListPerTruck})
-    elif isinstance(product_stats, str):
-        return jsonify({"error": sessionListPerTruck})
+
+    product_stats = process_session_data(sessionListPerTruck,t1,t2)   
+
+    if isinstance(product_stats, str):
+        return jsonify({"error": product_stats})
     
     products = []
-    for product_id, rate, scope in ratesList:
-        amount = product_stats[product_id]["amount"]
-        count = product_stats[product_id]["count"]
-        products.append(create_product(product_id, count, amount, rate))
+    for product_data in ratesList:
+        product_id = product_data['product_id']
+        rate = product_data['rate']
+        
+        if product_id in product_stats: 
+            amount = product_stats[product_id]["amount"]
+            count = product_stats[product_id]["count"]
+            products.append(create_product(product_id, count, amount, rate))
 
     total_payment = sum(product["pay"] for product in products)
 
@@ -394,11 +403,12 @@ def process_session_data(sessionListPerTruck,t1,t2):
 def get_session_list_per_truck(truckList,t1,t2):
     truck_sessions_dict = {}
     for truck in truckList:
+        truck_id = truck['id']
         try:
-            api = f"http://web_weight:5000/item/{truck}?from={t1}&to={t2}"
+            api = f"http://web_weight:5000/item/{truck_id}?from={t1}&to={t2}"
             response = requests.get(api)
             truck_data = response.json()
-            truck_sessions_dict[truck] = truck_data.get('sessions', [])
+            truck_sessions_dict[truck_id] = truck_data.get('sessions', [])
 
         except requests.exceptions.RequestException as e:
             return None, f"Error fetching data for truck {truck}: {e}"
@@ -454,7 +464,7 @@ def get_billdb_data(id):
 
         trucks_query = """
         SELECT
-            t.id, t.model, t.year, t.license_plate  # or whatever truck fields you need
+            t.id
         FROM
             Trucks t
         WHERE
@@ -479,14 +489,14 @@ def get_billdb_data(id):
         cursor.execute(trucks_query, (id,))
         trucks_list = cursor.fetchall()
         
-        cursor.execute(trucks_query, (id,))
+        cursor.execute(rates_query, (id,id))
         rates_list = cursor.fetchall()
 
         cursor.close()
         conn.close()
             
         if name_and_truckcount is not None and trucks_list is not None:
-            return True, True, name_and_truckcount["name"], name_and_truckcount["truckCount"], trucks_list, rates_list
+            return True, True, name_and_truckcount["provider_name"], name_and_truckcount["truck_count"], trucks_list, rates_list
         else:
             # Provider not found
             return False, "Provider not found, happend in get_billdb_data()", None, None, None, None
