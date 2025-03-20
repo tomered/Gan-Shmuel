@@ -63,8 +63,8 @@ def manage_env(action, env, branch='main'):
                 service_path = YAML_PATHS[service][env]
 
                 result = subprocess.run(
-                    ["docker", "compose", "-f", service_path, action, "-d", "--build"]
-                    if action == "up" else ["docker", "compose", "-f", service_path, action],
+                    ["docker", "compose", "-f", service_path, "-p", env, action, "-d", "--build"]
+                    if action == "up" else ["docker", "compose", "-p", env, action],
                     check=True, capture_output=True, text=True
                 )
 
