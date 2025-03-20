@@ -13,4 +13,4 @@ USER test-user
 COPY tests/test_billing.py .
 COPY app/app.py .
 
-CMD [ "python", "test_billing.py" ]
+CMD [ "pytest", "test_billing.py" ]
