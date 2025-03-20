@@ -36,14 +36,14 @@ def manage_env(action, env, branch='main'):
         app.logger.error(f"Invalid action '{action}'. Use 'up' or 'down'.")
         return ValueError(f"Invalid action '{action}'. Use 'up' or 'down'.")
 
-    app.logger.info(f"Performing action: `{action}` on `{branch}` in `{env}` environment...")
+    app.logger.info(
+        f"Performing action: `{action}` on `{branch}` in `{env}` environment...")
 
     try:
         if branch == 'main' or branch == 'billing':
             services = ['billing', 'weight']
         else:
             services = [branch]
-
 
         res_network = subprocess.run(
             f"docker network inspect {env}_network >/dev/null 2>&1 || docker network create {env}_network",
@@ -54,16 +54,17 @@ def manage_env(action, env, branch='main'):
 
         app.logger.info(res_network)
 
-
         results = {}
         for service in services:
             try:
-                app.logger.info(f"Executing `{action}` on `{service}` in {env} environment...")
+                app.logger.info(
+                    f"Executing `{action}` on `{service}` in {env} environment...")
 
                 service_path = YAML_PATHS[service][env]
 
                 result = subprocess.run(
-                    ["docker", "compose", "-f", service_path, "-p", env, action, "-d", "--build"]
+                    ["docker", "compose", "-f", service_path,
+                        "-p", env, action, "-d", "--build"]
                     if action == "up" else ["docker", "compose", "-p", env, action],
                     check=True, capture_output=True, text=True
                 )
@@ -71,18 +72,21 @@ def manage_env(action, env, branch='main'):
                 results[service] = result  # Store successful process
 
             except subprocess.CalledProcessError as e:
-                app.logger.error(f"Error executing `{action}` on `{service}`: {e.stderr.strip()}")
-                send_slack_message(f"❌ *Action `{action}` failed for `{service}`*.\n\n*Error Output:*\n```{e.stderr.strip()}```")
+                app.logger.error(
+                    f"Error executing `{action}` on `{service}`: {e.stderr.strip()}")
+                send_slack_message(
+                    f"❌ *Action `{action}` failed for `{service}`*.\n\n*Error Output:*\n```{e.stderr.strip()}```")
                 results[service] = e  # Store error object for later inspection
 
         if action == 'down':
-            cleanup_result = subprocess.run(["docker", "container", "prune", "-f"], check=True, capture_output=True, text=True)
+            cleanup_result = subprocess.run(
+                ["docker", "container", "prune", "-f"], check=True, capture_output=True, text=True)
 
             app.logger.info("Removing all stopped containers...")
             app.logger.info(f"Cleanup result: {cleanup_result.stdout.strip()}")
 
-
-        app.logger.info(f"Action `{action}` completed. Check results for any failures.")
+        app.logger.info(
+            f"Action `{action}` completed. Check results for any failures.")
         return results
 
     except Exception as e:
@@ -107,7 +111,8 @@ def check_yaml_path(service):
         # Check for 'prod' environment
         prod_path = YAML_PATHS[service_to_check].get('prod', None)
         if not prod_path or not os.path.isfile(prod_path):
-            app.logger.info(f"YAML file for `{service_to_check}` in `prod` environment is missing: {prod_path}")
+            app.logger.info(
+                f"YAML file for `{service_to_check}` in `prod` environment is missing: {prod_path}")
             return False
 
         # Check for 'test' environment
@@ -148,7 +153,7 @@ def ci_pipeline(payload):
 
         app.logger.info(
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
-        
+
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], check=True)
         subprocess.run(["git", "pull", "origin", branch], check=True)
@@ -156,12 +161,9 @@ def ci_pipeline(payload):
         app.logger.info("Check if docker-compose YAML files exist")
         if (not check_yaml_path(branch)):
             return "Missing files"
-        
-
 
         app.logger.info(f"Running tests in container for '{branch}'...")
-            
-        
+
         # Change to run tests in future
         # result = manage_env('up', branch, 'test')
         result = subprocess.run([
@@ -174,16 +176,16 @@ def ci_pipeline(payload):
         app.logger.info("Finished running tests")
 
         if result.returncode == 0:
-            send_slack_message(f"✅ *CI unit tests passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
-            
+            send_slack_message(
+                f"✅ *CI unit tests passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
+
             if branch.lower() == 'main':
                 result_down = manage_env(action='down', env='prod')
                 result_up = manage_env(action='up', env='prod')
                 app.logger.info("Finished deploying prod")
-                
+
             else:
                 app.logger.info("Branch is not main. Not deploying app")
-
 
         else:
             app.logger.info("Tests failed.")
