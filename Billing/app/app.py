@@ -349,10 +349,10 @@ def get_bill(id):
     
     products = []
     for product_data in ratesList:
-        product_id = product_data['product_id']  # Access the product_id value
-        rate = product_data['rate']              # Access the rate value
+        product_id = product_data['product_id']
+        rate = product_data['rate']
         
-        if product_id in product_stats:  # Check if this product exists in stats
+        if product_id in product_stats: 
             amount = product_stats[product_id]["amount"]
             count = product_stats[product_id]["count"]
             products.append(create_product(product_id, count, amount, rate))
