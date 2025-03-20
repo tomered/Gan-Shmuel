@@ -44,7 +44,7 @@
         <tr><th>Disk Usage</th><td id="disk">...</td></tr>
         <tr><th>Load Avg</th><td id="load">...</td></tr>
     </table>
-    <div class="footer">⏱️ Refreshes every 3 seconds</div>
+    <div class="footer">⏱️ Refreshes every 1 minute</div>
 
     <script>
         async function updateMetrics() {
@@ -71,7 +71,7 @@
         }
 
         updateMetrics();
-        setInterval(updateMetrics, 3000);
+        setInterval(updateMetrics, 60000);
     </script>
 </body>
 </html>
