@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify
+from pathlib import Path
+from flask import Flask, Response, request, jsonify
 from logger_config import setup_logger
 from dotenv import load_dotenv
 import subprocess
@@ -7,11 +8,13 @@ import requests
 import time
 import json
 import os
+import psutil
 
 load_dotenv()  # Load .env file if it exists
 
 app = Flask(__name__)
 setup_logger(app)
+HTML_FILE = Path(__file__).parent / "index.html"
 
 # CONFIG
 HOST_IP = '43.205.160.125'
@@ -274,6 +277,18 @@ def webhook():
 def health():
     return jsonify({"status": "success"}), 200
 
+@app.route("/metrics")
+def metrics():
+    if "application/json" in request.headers.get("Accept", ""):
+        return jsonify({
+            "cpu_percent": psutil.cpu_percent(),
+            "memory": psutil.virtual_memory()._asdict(),
+            "disk": psutil.disk_usage('/')._asdict(),
+            "load_avg": psutil.getloadavg()
+        })
+
+    # Serve the HTML dashboard
+    return Response(HTML_FILE.read_text(), mimetype="text/html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

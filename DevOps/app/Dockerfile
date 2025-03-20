@@ -24,7 +24,7 @@ RUN git clone https://github.com/tomered/Gan-Shmuel.git /Gan-Shmuel
 #     rm -rf /var/lib/apt/lists/*
 
 
-COPY ci.py logger_config.py ./
+COPY ci.py logger_config.py index.html ./
 
 WORKDIR /Gan-Shmuel
 
