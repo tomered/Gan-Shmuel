@@ -479,7 +479,7 @@ def get_billdb_data(id):
         cursor.execute(trucks_query, (id,))
         trucks_list = cursor.fetchall()
         
-        cursor.execute(trucks_query, (id,))
+        cursor.execute(rates_query, (id,id))
         rates_list = cursor.fetchall()
 
         cursor.close()
