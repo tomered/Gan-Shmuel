@@ -2,7 +2,7 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
-COPY ../app/requirements.txt .
+COPY app/requirements.txt .
 
 RUN pip install -r requirements.txt && \
     apk add --no-cache shadow && \
@@ -10,7 +10,7 @@ RUN pip install -r requirements.txt && \
 
 USER test-user
 
-COPY test_billing.py .
-
+COPY tests/test_billing.py .
+COPY app/app.py .
 
 CMD [ "python", "test_billing.py" ]

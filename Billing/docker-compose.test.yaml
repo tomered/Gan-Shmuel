@@ -1,8 +1,8 @@
 
 services:
-  billing-db:
+  billing-test-db:
     build: ./db/
-    container_name: billing-db
+    container_name: billing-test-db
     environment:
       MYSQL_ROOT_PASSWORD: secret
       MYSQL_DATABASE: billdb
@@ -16,30 +16,30 @@ services:
       timeout: 5s
       retries: 5
 
-  billing-app:
+  billing-test-app:
     build: ./app/
-    container_name: billing-app
+    container_name: billing-test-app
     depends_on:
-      - billing-db
+      - billing-test-db
     ports: 
       - "8083:5000"
     environment:
-        DB_HOST: billing-db
+        DB_HOST: billing-test-db
     networks:
       - test-network
     volumes:
       - ./in:/in
 
-  billing-test:
-    build: ./tests/
-    container_name: billing-test
+  billing-tester:
+    build: 
+      context: .
+      dockerfile: tests/Dockerfile
+    container_name: billing-tester
     depends_on: 
-      - billing-app
+      - billing-test-app
     networks:
       - test-network
   
-
-
 
 volumes:
   mysql-data: 

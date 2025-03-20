@@ -17,16 +17,16 @@ class TestProvider(unittest.TestCase):
 
         # Use Flask's test client to simulate a request
         with app.test_client() as client:
-            response = client.post('/provider', json={'name': 'Test'})
+            response = client.post('/provider', json={'name': 'testtt'})
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('id', response.json)
         self.assertIn('name', response.json)
-        self.assertEqual(response.json['name'], 'Test')
+        self.assertEqual(response.json['name'], 'testtt')
         self.assertEqual(response.json['id'], 1)
 
         mock_cursor.execute.assert_called_once_with(
-            'INSERT INTO Provider (name) VALUES (%s)', ('Test')
+            'INSERT INTO Provider (name) VALUES (%s)', ('testtt',)
         )
         
         mock_conn.commit.assert_called_once()
