@@ -7,10 +7,8 @@ services:
           condition: service_healthy
     build: ./app/
     container_name: webapp_gs
-#    volumes:
-#      - ./app/:./
     networks:
-      - gsnetwork
+      - prod_network 
     ports:
       - "8082:5000"
 
@@ -20,10 +18,9 @@ services:
     build: ./db/
     container_name: db_gs
     networks:
-      - gsnetwork
+      - prod_network 
     volumes:
-      - gsdata:/var/lib/mysql
-      # - ./db/weightdb.sql:/docker-entrypoint-initdb.d/weightdb.sql
+      - gsdata:/var/lib/mysql ##note -this is named volume!!
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -31,9 +28,9 @@ services:
       retries: 5
 
 networks:
-  gsnetwork:
+  prod_network:
+    external: true
 
 volumes:
   gsdata:
 
-  # ./app/: {}

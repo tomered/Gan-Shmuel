@@ -8,10 +8,15 @@ COPY ./requierments.txt /app/requierments.txt
 WORKDIR /app/
 RUN pip install -r requierments.txt
 COPY ./weight.py ./db.py ./
+COPY ./in/ ./in/
+
+
 
 #Create and switch to new user
 RUN useradd --user-group --system --no-log-init --create-home pythonuser
+RUN chown pythonuser ./in
 USER pythonuser
+
 
 #Initiate the app using main.py file
 ENTRYPOINT [ "python", "weight.py" ]

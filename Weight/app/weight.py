@@ -1,101 +1,169 @@
 import json
 from flask import Flask, request, jsonify
 from datetime import datetime
+from io import TextIOWrapper
 import mysql.connector
 import db
+import os
+import csv
+
+
 app = Flask(__name__)
 
-mydb = mysql.connector.connect(
-  host="db_gs",
-  user="root",
-  password="root",
-  database="weight"
-)
+mydb = db.connect_db()
 
-cursor = mydb.cursor(dictionary=True)
+cursor = mydb.cursor(dictionary=True, buffered=True)
+
+# Converts LBS to kg, Returns int per containers_registered table.
+def convert_weight(weight):
+    # LBS to Kg conversion
+    new_weight = int(weight) * 0.45359237
+    return int(new_weight)
 
 @app.route('/')
 def home():
-    return "Hello, From weight server!"
+    return "Hello, Welcome to weight software!"
 
-# Close DB connection after each request
-# @app.teardown_appcontext
-# def close_connection(exception):
-#     db.close_db()
 
-sessions_data = [
-    {
-        "id": "1619874477.123456",
-        "direction": "in",
-        "bruto": 1000,
-        "neto": "na",
-        "produce": "orange",
-        "containers": ["str1", "str2"]
-    },
-    {
-        "id": "1619874487.234567",
-        "direction": "out",
-        "bruto": 1500,
-        "neto": 1000,
-        "produce": "tomato",
-        "containers": ["str3"]
-    },
-    {
-        "id": "1619874497.345678",
-        "direction": "none",
-        "bruto": 800,
-        "neto": "na",
-        "produce": "na",
-        "containers": []
-    }
-]
-items_data = {
-    "truck1": {
-        "tara": 800,
-        "sessions": ["1619874477.123456", "1619874487.234567"]
-    },
-    "container1": {
-        "tara": "na",
-        "sessions": ["1619874497.345678"]
-    }
-}
 # http://localhost:5000/item/truck1?from=20230301000000&to=20230302235959
 @app.route("/item/<id>", methods=["GET"])
 def get_item(id):
-    from_param = request.args.get('from', default="20230301000000")
-    to_param = request.args.get('to', default=str(
-        datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
     try:
-        t1 = datetime.datetime.strptime(from_param, '%Y%m%d%H%M%S')
-        t2 = datetime.datetime.strptime(to_param, '%Y%m%d%H%M%S')
-    except ValueError:
-        return jsonify({"error": "Invalid date format. Expected format: yyyymmddhhmmss"}), 400
-    if id not in items_data:
-        return jsonify({"error": "Item not found"}), 404
-    item_data = items_data[id]
-    return jsonify({
-        "id": id,
-        "tara": item_data["tara"],
-        "sessions": item_data["sessions"]
-    }), 200
+       
+        from_time = request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000")
+        to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+
+
+        cursor.execute("SELECT truck FROM transactions WHERE truck = %s", (id,))
+        id_check = cursor.fetchone()  # Fetch one result 
+
+        if not id_check:
+            return jsonify({"error": "Item not found"}), 404 
+
+        # Construct SQL query
+        query = """
+        SELECT 
+            truck, 
+            MAX(truckTara) AS truckTara, 
+            GROUP_CONCAT(DISTINCT session ORDER BY session SEPARATOR ', ') AS sessions
+        FROM transactions
+        WHERE datetime BETWEEN %s AND %s
+        AND truck = %s
+        GROUP BY truck
+        """
+        params = (from_time, to_time, id) 
+
+        cursor.execute(query, params)
+        result = cursor.fetchone()
+
+
+        return jsonify(result)
+    
+    except mysql.connector.Error as e:
+        return jsonify({"error": str(e)}), 500
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/batch-weight", methods=["POST"])
+def containers_insert():
+    file = request.files["file"]
+    if not file:
+        return {"error": "No file part in the request"}, 400
+    allowed_extensions = {".csv", ".json"}
+    file_extension = os.path.splitext(file.filename)[1].lower()  # Get the file extension in lowercase
+    if file_extension not in allowed_extensions:
+        return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
+    
+    mysql = db.connect_db()
+    cursor = mysql.cursor(dictionary=True)
+    
+    def insert_into_db(container_id, weight, unit):
+        try:
+            cursor.execute(
+                """
+                INSERT INTO containers_registered (container_id, weight, unit)
+                VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE weight = VALUES(weight) """,
+                (container_id, weight, unit)
+            )
+
+            mysql.commit()
+        except Exception as e:
+            print(f"Error inserting into database: {str(e)}")
+
+
+    try:
+        # Process CSV files
+        if file_extension == ".csv":
+            csv_reader = csv.DictReader(TextIOWrapper(file.stream, encoding="utf-8"))
+            headers = next(csv_reader)  # Extract the first line as headers
+            unit_type = "lbs" if "lbs" in headers else 'kg'
+            for row in csv_reader:
+                container_id = row.get("id")
+                if unit_type == "lbs":
+                    weight = int(row.get("lbs"))
+                    weight=convert_weight(weight)
+                else:
+                    weight = int(row.get("kg"))
+                unit='kg'
+                insert_into_db(container_id, weight, unit)
+
+
+        # Process JSON files
+        elif file_extension == ".json":
+            data = json.load(file.stream)
+            for entry in data:
+                container_id = entry.get("id")
+                weight = int(entry.get("weight"))
+                unit = entry.get("unit")
+                if unit == "lbs":
+                    weight=convert_weight(weight)
+                    unit="kg"
+                # Insert each entry into the database
+                insert_into_db(container_id, weight, unit)
+
+        # file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
+        return jsonify({"message": "File processed and data inserted successfully!"}), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
 # http://localhost:5000/session/1619874477.123456
 @app.route("/session/<id>", methods=["GET"])
 def get_session(id):
-    session = next((item for item in sessions_data if item['id'] == id), None)
-    if not session:
-        return jsonify({"error": "Session not found"}), 404
-    response = {
-        "id": session["id"],
-        "direction": session["direction"],
-        "bruto": session["bruto"],
-    }
-    if session["direction"] == "out":
-        response["truckTara"] = 1000
-        response["neto"] = session["neto"] if session["neto"] != "na" else "na"
-    return jsonify(response), 200
+
+    try:
+        cursor.execute("SELECT truck FROM transactions WHERE session = %s", (id,))
+        id_check = cursor.fetchone()  # Fetch one result 
+
+        if not id_check:
+            return jsonify({"error": "Item not found"}), 404 
+
+        query = """
+        SELECT session, truck,
+        MAX(bruto) AS bruto,
+        MAX(produce) AS produce,
+        MAX(truckTara) AS truckTara,
+        MAX(neto) AS neto 
+            FROM transactions
+            WHERE session = %s
+            GROUP BY session, truck
+            """
+
+        cursor.execute(query, (id,))
+        result = cursor.fetchone()
 
 
-@app.route('/health', methods=['GET'])
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/health', methods=['GET']) ##DONE
 def healthcheck():
       if mydb.is_connected():
         cursor.execute("SELECT 1;") 
@@ -104,7 +172,7 @@ def healthcheck():
       else:
           return "Failure", 500
 
-@app.route('/weight', methods=['GET'])
+@app.route('/weight', methods=['GET']) ##DONE
 def get_weight():
 
     from_time = request.args.get('from',datetime.now().strftime("%Y%m%d") + "000000")
@@ -130,14 +198,21 @@ def get_weight():
     except mysql.connector.Error as e:
         return jsonify({"error": str(e)}), 500
 
-# Generate a unique ID for session
-
-
-@app.route('/weight', methods=['POST'])
+@app.route('/weight', methods=['POST']) ##DONE
 def info_insert():
     # Ensure correct Content-Type
     if request.content_type != 'application/json':
         return ({"error": "Content-Type must be application/json"}), 415
+    
+    #set up the last session id to maintaine continues
+    def fetch_session_id():
+        mysql = db.connect_db()
+        cursor = mysql.cursor(dictionary=True)
+        cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
+        result = cursor.fetchone()
+        if result is None:
+            return 0
+        return result["session"]
 
     # Parse JSON payload
     data = request.json
@@ -145,45 +220,42 @@ def info_insert():
     truck = data.get('truck', 'na')  # Default to "na" if no truck is provided
     containers = data.get('containers', '')  # Comma-separated container IDs
     weight = data.get('weight')
-    # unit = data.get('unit', 'kg')  # Default to "kg"
+    unit = data.get('unit', 'kg')  # Default to "kg"
     force = data.get('force', False)  # Default is False
     produce = data.get('produce', 'na')  # Default to "na"
     current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # return {"container_weight": db.container_data(containers)}
 
-
+    # Converts weight from Pounds to Kilograms 
+    if unit.lower() == "lbs" or unit.lower() == "lb":
+        weight = convert_weight(weight)
 
     # Validate required fields
-    if not direction or weight is None:
+    if not direction or weight is None or not truck or not containers:
         return ({"error": "Missing required fields"}), 400
-    
-    mysql = db.connect_db()  # Get DB connection
+
+    mysql = db.connect_db()
     cursor = mysql.cursor(dictionary=True)
-    #set up the last session id to maintaine continues
-    def fetch_session_id():
-        mysql = db.connect_db()  # Get DB connection
-        cursor = mysql.cursor(dictionary=True)
 
-
-        # set up the last session id to maintaine continues
-        cursor.execute(""" SELECT session FROM transactions ORDER BY session DESC""")
-        result = cursor.fetchone()
-        if result is None:
-            return 0
-        return result["session"]
-
-
-    # Direction: "in" DONE!!!
+    # Direction: "in"
     if direction == "in":
         # Check if there's an "in" session for the same truck
         cursor.execute(""" SELECT * FROM transactions WHERE truck = %s AND direction = 'in' AND session NOT IN 
-                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck, ))
+                    (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck, ))
         existing_in = cursor.fetchone()
 
         if existing_in and not force:
-            return {"error": "An active 'in' session already exists. Use force=true to overwrite."}
+            return {"error": "An active 'in' session already exists. Use force=true to overwrite."}, 500
         # Insert a new "in" session
         session_id= fetch_session_id()
+        cursor.execute(""" SELECT truck FROM transactions WHERE truck = %s AND direction = 'in' LIMIT 1; """, (truck, ))
+        truck_exist = cursor.fetchone()
+        if force and truck_exist: ## add check for the same trackid
+            cursor.execute("UPDATE transactions "
+                "SET session = %s, truck = %s, direction = %s, bruto = %s, datetime = %s, containers = %s, produce = %s "
+                "WHERE truck = %s",
+                (session_id, truck, direction, weight, current_date, containers, produce, truck))
+            mysql.commit()
+            return {"session": session_id, "truck": truck, "bruto": weight}, 200
         session_id +=1
         cursor.execute("INSERT INTO transactions (session, truck, direction, bruto, datetime, containers, produce) "
                         "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, weight, current_date, containers, produce))
@@ -191,32 +263,18 @@ def info_insert():
         return {"session": session_id, "truck": truck, "bruto": weight}, 200
 
 
-
-
-
-
-
-
-
-
-
-
-
     # Direction: "out"
     elif direction == "out":
         # Get the latest "in" session for this truck
         cursor.execute(""" SELECT * FROM transactions WHERE truck = %s AND direction = 'in' AND session NOT IN 
-                       (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck,))
+                    (SELECT session FROM transactions WHERE direction = 'out') LIMIT 1; """, (truck,))
         last_in = cursor.fetchone()
-        # return last_in
 
         if not last_in:
             return {"error": "No 'in' session found for this truck. Cannot proceed with 'out'."}
 
         # Calculate neto (Fruits)
-        # bruto_weight = int(last_in.get("bruto", 0)) if last_in else 0
         session_id=last_in.get("session")
-            # Calculate neto (Fruits)
         try:
             bruto_weight = last_in["bruto"] # Get bruto from last_in
             truck_tara = int(weight)  # Current truck weight
@@ -225,10 +283,7 @@ def info_insert():
             
         except Exception as e:
             return {"error": f"Failed to calculate net weight: {e}"}, 500
-        # truck_tara = weight
-        # container_weight = int(db.container_data(containers))
-        # net_weight = bruto_weight - truck_tara - container_weight
-        # net_weight = bruto_weight - int(truck_tara) - int(db.container_data(containers))
+
 
         # Insert a new "out" session
         # Here we need to get tara weight, truck id, calculate neto as input
@@ -236,7 +291,7 @@ def info_insert():
                         "VALUES (%s, %s, %s, %s, %s, %s, %s)", (session_id, truck, direction, truck_tara, current_date, containers, net_weight))
         mysql.commit()
         return {
-            "id": last_in["session"],
+            "sesssion": last_in["session"],
             "truck": truck,
             "truckTara": truck_tara,
             "neto": net_weight
@@ -244,14 +299,47 @@ def info_insert():
 
     # Direction: "none"
     elif direction == "none":
-        # Create a standalone session
-        cursor.execute("INSERT INTO transactions (session, direction) VALUES ('%s', '%s', '%s')", (session_id, truck, direction))
+        cursor.execute(""" SELECT direction FROM transactions ORDER BY datetime DESC LIMIT 1;""")
+        result = cursor.fetchone()
+        if 'in' in result['direction']:
+            return ("Error, na after in detected"), 500
+        session_id= fetch_session_id()
+        session_id +=1
+        cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
         mysql.commit()
-        return {"id": session_id, "truck": "na", "bruto": weight}
+        return {"id": session_id, "truck": "na", "bruto": weight, "result":result}, 200
 
     # If invalid direction
-    return {"error": "Invalid direction specified"}
+    return {"Error": "Page Not Found, try different route"}, 404
+ 
+
+
+@app.route('/unknown', methods=['GET'])
+def get_unknown():
     
+    try:        
+        # Intializing a list for empty containers
+        contaniers_empty = []
+
+        # SQL querry for empty_containers, where whight is null
+        query = """
+        SELECT container_id from containers_registered WHERE weight IS NULL
+        """     
+
+        cursor.execute(query)
+        result = cursor.fetchall()
+
+        # indexing the specifc ID's from the querry to the containers_empty list
+        for id in result:
+            contaniers_empty.append(id["container_id"])
+        
+        # Return the list of empty continare id's 
+        return {"id": contaniers_empty}, 200
+
+
+    except mysql.connector.Error as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)
