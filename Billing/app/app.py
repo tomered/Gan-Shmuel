@@ -345,7 +345,7 @@ def get_bill(id):
     product_stats = process_session_data(sessionListPerTruck,t1,t2)   
 
     if isinstance(product_stats, str):
-        return jsonify({"error": sessionListPerTruck})
+        return jsonify({"error": product_stats})
     
     products = []
     for product_data in ratesList:
