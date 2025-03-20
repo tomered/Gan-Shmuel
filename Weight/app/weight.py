@@ -107,33 +107,51 @@ def containers_insert():
 
             for entry in data:
                 container_id = entry.get("id")
-                weight = int(entry.get("weight"))
+                weight = entry.get("weight")
                 unit = entry.get("unit")
-                
-                if unit == "lbs":
-                    weight = convert_weight(weight)
-                    unit = "kg"
-                
-                insert_into_db(container_id, weight, unit)
+
+                if isinstance(weight, str):
+                    weight = weight.strip()  # Remove spaces if it's a string
+                    weight =  None  # Convert to int if not empty
+                else:
+                    try : 
+                        weight = int(weight)
+                    except ValueError:
+                        weight = None
+                if unit == "lbs": 
+                    weight=convert_weight(weight)
+                    unit="kg"
+
+                if container_id is not None:
+                    insert_into_db(container_id, weight, unit)
 
         # Process CSV files
         elif file_extension == '.csv':
             with open(file_path, 'r', encoding='utf-8') as f:
                 csv_reader = csv.DictReader(f)
                 
-                # Detect unit type from headers
-                unit_type = "lbs" if "lbs" in csv_reader.fieldnames else "kg"
+                headers = next(csv_reader)  # Extract the first line as headers
+                unit_type = "lbs" if "lbs" in headers else 'kg'
 
                 for row in csv_reader:
-                    container_id = row.get("id")
-                    if unit_type == "lbs":
-                        weight = int(row.get("lbs"))
-                        weight = convert_weight(weight)
-                    else:
-                        weight = int(row.get("kg"))
-
+                    
                     unit = "kg"
-                    insert_into_db(container_id, weight, unit)
+                    container_id = row.get("id")
+                    weight = row.get("lbs") if unit_type == "lbs" else row.get("kg")
+
+                    if weight.strip() == "":
+                        weight = None  # Handle empty weight values
+                    else:
+                        try : 
+                            weight = int(weight)
+                        except ValueError:
+                            weight = None
+
+                    if unit_type == "lbs":
+                        weight = convert_weight(weight)
+
+                    if container_id is not None:
+                        insert_into_db(container_id, weight, unit)
 
         else:
             return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
