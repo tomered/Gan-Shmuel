@@ -10,7 +10,8 @@ RUN pip install -r requirements.txt && \
 
 USER test-user
 
-COPY tests/test_billing.py .
+COPY ./tests tests
 COPY app/app.py .
 
-CMD [ "pytest", "test_billing.py" ]
+
+CMD [ "pytest", "-q", "--disable-warnings", "tests/" ]

@@ -30,11 +30,11 @@ services:
     volumes:
       - ./in:/in
 
-  billing-tester:
+  billing-test:
     build: 
       context: .
       dockerfile: tests/Dockerfile
-    container_name: billing-tester
+    container_name: billing-test
     depends_on: 
       - billing-test-app
     networks:
