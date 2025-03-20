@@ -4,6 +4,7 @@ import mysql.connector
 from mysql.connector import Error
 import datetime
 import pandas as pd
+import datetime
 import requests
 
 
@@ -228,29 +229,10 @@ def register_truck():
     
 @app.route('/truck/<id>', methods=['GET'])
 def get_truck_sessions(id):
-    t1 = request.args.get('from')
-    t2 = request.args.get('to')
-    
-    if t1 is None:
-        now = datetime.datetime.now()
-        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
-    else:
-        try:
-            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
-        except ValueError:
-            return jsonify({"error": "Invalid 'from' date format. Use yyyymmddhhmmss"}), 400
-            
-    if t2 is None:
-        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-    else:
-        try:
-            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
-        except ValueError:
-            return jsonify({"error": "Invalid 'to' date format. Use yyyymmddhhmmss"}), 400
-    
-    if t1 > t2:
-        return jsonify({"error": "Start time must be before end time"}), 400
+    t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
 
+    if error:
+        return jsonify({"error": error[0]}), error[1]
     if not id.strip():
         return jsonify({"error": "Truck ID cannot be empty"}), 400
     
@@ -339,6 +321,200 @@ def rates_download():
         return jsonify({"message": "Rates successfully downloaded to Excel", "file_path": excel_path}), 200
     except Exception as e:
         return jsonify({"error": f"Error downloading rates: {str(e)}"}), 500
+    
+@app.route('/bill/<id>', methods=['GET'])
+def get_bill(id):
+    if not id.strip():
+        return jsonify({"error": "Provider ID cannot be empty"}), 400
+
+    t1, t2, error = validate_time(request.args.get('from'), request.args.get('to'))
+
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+
+    success, result_or_error, name, truckCount, truckList, ratesList = get_billdb_data(id)
+
+    if not success:
+        return jsonify({"error": result_or_error}), 404 if "not found" in result_or_error else 500
+    
+    sessionCount, sessionListPerTruck = get_session_list_per_truck(truckList,t1,t2)
+
+    if isinstance(sessionListPerTruck, str):
+        return jsonify({"error": sessionListPerTruck})
+
+    product_stats = process_session_data(sessionListPerTruck,t1,t2)   
+
+    if isinstance(product_stats, str):
+        return jsonify({"error": sessionListPerTruck})
+    
+    products = []
+    for product_data in ratesList:
+        product_id = product_data['product_id']
+        rate = product_data['rate']
+        
+        if product_id in product_stats: 
+            amount = product_stats[product_id]["amount"]
+            count = product_stats[product_id]["count"]
+            products.append(create_product(product_id, count, amount, rate))
+
+    total_payment = sum(product["pay"] for product in products)
+
+    data = {
+        "id": id,
+        "name": name,
+        "from": t1,
+        "to": t2,
+        "truckCount": truckCount,
+        "sessionCount": sessionCount,
+        "products": products,
+        "total": total_payment
+    }
+
+    return jsonify(data), 201
+
+def process_session_data(sessionListPerTruck,t1,t2):
+    product_stats = {}
+    for truck, sessions in sessionListPerTruck.items():
+        for session_id in sessions:
+            try:
+                api = f"http://web_weight:5000/session/{session_id}?from={t1}&to={t2}"
+                response = requests.get(api)
+                session_data = response.json()
+
+                if "truckTara" in session_data:
+                    neto = session_data.get("neto")
+                    product = session_data.get("produce")
+                else:
+                    continue
+                if neto != "na":
+                    if product not in product_stats:
+                        product_stats[product] = {"count": 0, "amount": 0}
+
+                    product_stats[product]["count"] += 1
+                    product_stats[product]["amount"] += int(neto)
+
+            except requests.exceptions.RequestException as e:
+                return f"Error fetching data for truck {session_id}: {e}"
+            except Exception as e:
+                return f"Error processing truck {session_id}: {e}"
+            
+    return product_stats
+
+def get_session_list_per_truck(truckList,t1,t2):
+    truck_sessions_dict = {}
+    for truck in truckList:
+        truck_id = truck['id']
+        try:
+            api = f"http://web_weight:5000/item/{truck_id}?from={t1}&to={t2}"
+            response = requests.get(api)
+            truck_data = response.json()
+            truck_sessions_dict[truck_id] = truck_data.get('sessions', [])
+
+        except requests.exceptions.RequestException as e:
+            return None, f"Error fetching data for truck {truck}: {e}"
+        except Exception as e:
+            return None, f"Error processing truck {truck}: {e}"
+        
+    total_sessions = sum(len(sessions) for sessions in truck_sessions_dict.values())
+    
+    return total_sessions, truck_sessions_dict
+
+def validate_time(t1, t2):
+    if t1 is None:
+        now = datetime.datetime.now()
+        t1 = datetime.datetime(now.year, now.month, 1).strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t1, '%Y%m%d%H%M%S')
+        except ValueError:
+            return None, None, ("Invalid 'from' date format. Use yyyymmddhhmmss", 400)
+        
+    if t2 is None:
+        t2 = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    else:
+        try:
+            datetime.datetime.strptime(t2, '%Y%m%d%H%M%S')
+        except ValueError:
+            return None, None, ("Invalid 'to' date format. Use yyyymmddhhmmss", 400)
+    
+    if t1 > t2:
+        return None, None, ("Start time must be before end time", 400)
+    
+    return t1, t2, None
+
+def get_billdb_data(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # SQL query to get provider name and count trucks
+        name_and_count_query = """
+        SELECT 
+            p.name AS provider_name,
+            COUNT(t.id) AS truck_count
+        FROM 
+            Provider p
+        LEFT JOIN 
+            Trucks t ON p.id = t.provider_id
+        WHERE 
+            p.id = %s
+        GROUP BY 
+            p.id, p.name
+        """
+
+        trucks_query = """
+        SELECT
+            t.id
+        FROM
+            Trucks t
+        WHERE
+            t.provider_id = %s
+        """
+
+        rates_query = """
+        SELECT r1.product_id, r1.rate
+        FROM Rates r1
+        WHERE 
+            (r1.scope = %s) OR
+            (r1.scope = 'all' AND NOT EXISTS (
+                SELECT 1 FROM Rates r2 
+                WHERE r2.product_id = r1.product_id AND r2.scope = %s
+            ))
+        ORDER BY r1.product_id
+        """
+
+        cursor.execute(name_and_count_query, (id,))
+        name_and_truckcount = cursor.fetchone()
+
+        cursor.execute(trucks_query, (id,))
+        trucks_list = cursor.fetchall()
+        
+        cursor.execute(rates_query, (id,id))
+        rates_list = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+            
+        if name_and_truckcount is not None and trucks_list is not None:
+            return True, True, name_and_truckcount["provider_name"], name_and_truckcount["truck_count"], trucks_list, rates_list
+        else:
+            # Provider not found
+            return False, "Provider not found, happend in get_billdb_data()", None, None, None, None
+        
+    except Exception as e:
+        # Database or other error
+        return False, f"Error retrieving data from database: {str(e)}", None, None, None, None
+    
+def create_product(product_name, session_count, amount_kg, rate_agorot):
+    pay = amount_kg * rate_agorot
+    return {
+        "product": product_name,
+        "count": str(session_count),  # Must be a string per the spec
+        "amount": amount_kg,          # Total kg (integer)
+        "rate": rate_agorot,          # Price in agorot (integer)
+        "pay": pay                    # Total payment in agorot (integer)
+}
+
 
 if __name__ == '__main__':
     # TODO: Check if host 0.0.0.0 is the correct way to do this
