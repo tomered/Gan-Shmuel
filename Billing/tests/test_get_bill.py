@@ -55,14 +55,14 @@ class TestGetBillAPI:
         
         corn_product = next((p for p in data["products"] if p["product"] == "corn"), None)
         assert corn_product is not None
-        assert corn_product["count"] == "2"
+        assert corn_product["count"] == "2"  # Should be a string per the spec
         assert corn_product["amount"] == 3000
         assert corn_product["rate"] == 12
         assert corn_product["pay"] == 36000  # 3000 * 12
         
         wheat_product = next((p for p in data["products"] if p["product"] == "wheat"), None)
         assert wheat_product is not None
-        assert wheat_product["count"] == "1"
+        assert wheat_product["count"] == "1"  # Should be a string per the spec
         assert wheat_product["amount"] == 1500
         assert wheat_product["rate"] == 15
         assert wheat_product["pay"] == 22500  # 1500 * 15
@@ -189,15 +189,21 @@ class TestGetBillAPI:
             {"T1": ["S1", "S2"], "T2": ["S3"]}  # session list per truck
         )
         
-        # Simulate error in process_session_data
+        # Simulate error in process_session_data - the function returns a string on error
         mock_process_session_data.return_value = "Error processing session S1: Invalid data format"
         
         # Make the request
         response = client.get('/bill/1')
         
-        # Verify response
+        # Looking at your code, when process_session_data returns a string error,
+        # it gets assigned directly to the "error" field in the response
         data = json.loads(response.data)
         assert "error" in data
+        # The error should be the session list - because there's a check in your code:
+        # if isinstance(product_stats, str):
+        #     return jsonify({"error": sessionListPerTruck})
+        # So the error is actually the sessionListPerTruck value
+        assert "Error processing session S1: Invalid data format" in data["error"]
         assert "Error processing session" in data["error"]
     
     @patch('app.get_billdb_data')
@@ -239,3 +245,9 @@ class TestGetBillAPI:
         assert data["name"] == "Test Provider"
         assert data["products"] == []  # No matching products
         assert data["total"] == 0  # Zero total payment
+        
+        # Additional checks to verify all required fields are present
+        assert "from" in data
+        assert "to" in data
+        assert "truckCount" in data
+        assert "sessionCount" in data
