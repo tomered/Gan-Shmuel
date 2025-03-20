@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>📡 System Monitor</title>
+    <style>
+        body {
+            font-family: monospace;
+            background-color: #121212;
+            color: #e0e0e0;
+            padding: 2rem;
+        }
+        h1 { color: #4fc3f7; }
+        table {
+            width: 100%;
+            max-width: 700px;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            color: #90caf9;
+            font-weight: bold;
+            background-color: #2a2a2a;
+        }
+        .footer {
+            margin-top: 1rem;
+            font-size: 0.5rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <h1>📡 System Monitor</h1>
+    <table id="monitor-table">
+        <tr><th>CPU Usage</th><td id="cpu">...</td></tr>
+        <tr><th>Memory Used</th><td id="memory">...</td></tr>
+        <tr><th>Disk Usage</th><td id="disk">...</td></tr>
+        <tr><th>Load Avg</th><td id="load">...</td></tr>
+    </table>
+    <div class="footer">⏱️ Refreshes every 1 minute</div>
+
+    <script>
+        async function updateMetrics() {
+            try {
+                const res = await fetch('/metrics', {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                document.getElementById('cpu').innerText = data.cpu_percent + '%';
+                document.getElementById('memory').innerText =
+                    (data.memory.used / 1e9).toFixed(2) + ' GB / ' +
+                    (data.memory.total / 1e9).toFixed(2) + ' GB (' + data.memory.percent + '%)';
+                document.getElementById('disk').innerText =
+                    (data.disk.used / 1e9).toFixed(2) + ' GB / ' +
+                    (data.disk.total / 1e9).toFixed(2) + ' GB (' + data.disk.percent + '%)';
+                document.getElementById('load').innerText =
+                    data.load_avg.map(x => x.toFixed(2)).join(', ');
+            } catch (e) {
+                document.getElementById('cpu').innerText = 'Error';
+                document.getElementById('memory').innerText = 'Error';
+                document.getElementById('disk').innerText = 'Error';
+                document.getElementById('load').innerText = 'Error';
+            }
+        }
+
+        updateMetrics();
+        setInterval(updateMetrics, 60000);
+    </script>
+</body>
+</html>
