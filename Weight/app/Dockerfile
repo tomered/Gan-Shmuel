@@ -1,13 +1,13 @@
 FROM python:3.13.2-slim
 
 #General updates
-RUN apt-get update && rm -rf /var/cache/apk/*
+RUN apt-get update && rm -rf /var/cache/apk/* && apt install curl -y
 
 # install requierments at destination folder
 COPY ./requierments.txt /app/requierments.txt
 WORKDIR /app/
 RUN pip install -r requierments.txt
-COPY ./weight.py ./db.py ./
+COPY ./weight.py ./db.py get_unknown_test.py ./
 COPY ./in/ ./in/
 
 

@@ -101,10 +101,10 @@ def containers_insert():
             for row in csv_reader:
                 container_id = row.get("id")
                 if unit_type == "lbs":
-                    weight = int(row.get("lbs"))
+                    weight = row.get("lbs")
                     weight=convert_weight(weight)
                 else:
-                    weight = int(row.get("kg"))
+                    weight = row.get("kg")
                 unit='kg'
                 insert_into_db(container_id, weight, unit)
 
