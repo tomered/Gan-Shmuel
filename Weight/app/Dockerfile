@@ -1,7 +1,7 @@
 FROM python:3.13.2-slim
 
 #General updates
-RUN apt-get update && rm -rf /var/cache/apk/* && apt install curl -y
+RUN apt-get update && rm -rf /var/cache/apk/*
 
 # install requierments at destination folder
 COPY ./requierments.txt /app/requierments.txt
