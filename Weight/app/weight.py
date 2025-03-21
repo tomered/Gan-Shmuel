@@ -74,13 +74,6 @@ def get_item(id):
 
 @app.route("/batch-weight", methods=["POST"])
 def containers_insert():
-    file = request.files["file"]
-    if not file:
-        return {"error": "No file part in the request"}, 400
-    allowed_extensions = {".csv", ".json"}
-    file_extension = os.path.splitext(file.filename)[1].lower()  # Get the file extension in lowercase
-    if file_extension not in allowed_extensions:
-        return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
     
     mysql = db.connect_db()
     cursor = mysql.cursor(dictionary=True)
@@ -110,6 +103,7 @@ def containers_insert():
 
         file_extension = os.path.splitext(file_path)[1].lower()
 
+
         # Process JSON files
         if file_extension == '.json':
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -117,7 +111,9 @@ def containers_insert():
 
             for entry in data:
                 container_id = entry.get("id")
-                weight = int(entry.get("weight"))
+                if not container_id:
+                    return {"error":f"Missing container ID, cannot continue"}, 400
+                weight = entry.get("weight")
                 unit = entry.get("unit")
                 
                 if unit == "lbs":
@@ -126,6 +122,7 @@ def containers_insert():
                 
                 insert_into_db(container_id, weight, unit)
 
+
         # Process CSV files
         elif file_extension == '.csv':
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -133,22 +130,37 @@ def containers_insert():
                 
                 # Detect unit type from headers
                 unit_type = "lbs" if "lbs" in csv_reader.fieldnames else "kg"
-
+                row_num = 0
+                warnings=[]
                 for row in csv_reader:
                     container_id = row.get("id")
-                    if unit_type == "lbs":
-                        weight = int(row.get("lbs"))
-                        weight = convert_weight(weight)
+                    if not container_id:
+                        warnings.append(f"Missing Container ID at line {row_num}") 
+                    elif unit_type == "lbs":
+                        weight = row.get("lbs")
+                        if weight == None:
+                            weight = "NULL"
+                            insert_into_db(container_id, weight, unit)
+                        else:
+                            weight = convert_weight(weight)
+                            unit="kg"
+                            insert_into_db(container_id, weight, unit)
                     else:
-                        weight = int(row.get("kg"))
-
-                    unit = "kg"
-                    insert_into_db(container_id, weight, unit)
+                        weight = row.get("kg")
+                        if weight == None:
+                            weight = "NULL"
+                        
+                        insert_into_db(container_id, weight, unit_type)
+                    row_num+=1
+             
 
         else:
             return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
-
-        return {"message": "File processed successfully"}, 200
+        
+        if warnings:
+            return {"message": "File processed with warnings", "Warning":warnings}, 200
+        else:
+            return {"message": "File processed successfully"}, 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

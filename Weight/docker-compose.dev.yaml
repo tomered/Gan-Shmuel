@@ -9,6 +9,7 @@ services:
     container_name: webapp_gs
     volumes:
       - ./app/weight.py:/app/weight.py
+      - ./app/in/:/app/in/
     networks:
       - gsnetwork
     ports:
