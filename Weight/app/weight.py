@@ -28,10 +28,17 @@ def home():
 # http://localhost:5000/item/truck1?from=20230301000000&to=20230302235959
 @app.route("/item/<id>", methods=["GET"])
 def get_item(id):
+    
     try:
-       
-        from_time = request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000")
-        to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+        from_time = datetime.strptime(request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000"), "%Y%m%d%H%M%S")
+        to_time = datetime.strptime(request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S")), "%Y%m%d%H%M%S")
+    except ValueError:
+        return "Invalid date format. Use YYYYMMDDHHMMSS.", 400
+
+    try:
+        # Validate that 'from' time is earlier than 'to' time
+        if from_time > to_time :
+            return "The 'from' time must be earlier than the 'to' time.", 400
 
 
         cursor.execute("SELECT truck FROM transactions WHERE truck = %s", (id,))
@@ -89,47 +96,63 @@ def containers_insert():
 
             mysql.commit()
         except Exception as e:
-            print(f"Error inserting into database: {str(e)}")
-
+            print(f"Error inserting into database: {str(e)}")   
 
     try:
-        # Process CSV files
-        if file_extension == ".csv":
-            csv_reader = csv.DictReader(TextIOWrapper(file.stream, encoding="utf-8"))
-            headers = next(csv_reader)  # Extract the first line as headers
-            unit_type = "lbs" if "lbs" in headers else 'kg'
-            for row in csv_reader:
-                container_id = row.get("id")
-                if unit_type == "lbs":
-                    weight = row.get("lbs")
-                    weight=convert_weight(weight)
-                else:
-                    weight = row.get("kg")
-                unit='kg'
-                insert_into_db(container_id, weight, unit)
+        filename = request.get_json().get("file")
+        if not filename:
+            return {"error": "No file part in the request"}, 400
 
+        file_path = os.path.join("./in/", filename)
+
+        if not os.path.isfile(file_path):
+            return {"error": "File not found"}, 404
+
+        file_extension = os.path.splitext(file_path)[1].lower()
 
         # Process JSON files
-        elif file_extension == ".json":
-            data = json.load(file.stream)
+        if file_extension == '.json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
             for entry in data:
                 container_id = entry.get("id")
                 weight = int(entry.get("weight"))
                 unit = entry.get("unit")
+                
                 if unit == "lbs":
-                    weight=convert_weight(weight)
-                    unit="kg"
-                # Insert each entry into the database
+                    weight = convert_weight(weight)
+                    unit = "kg"
+                
                 insert_into_db(container_id, weight, unit)
 
-        # file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
-        return jsonify({"message": "File processed and data inserted successfully!"}), 200
-    
+        # Process CSV files
+        elif file_extension == '.csv':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                csv_reader = csv.DictReader(f)
+                
+                # Detect unit type from headers
+                unit_type = "lbs" if "lbs" in csv_reader.fieldnames else "kg"
+
+                for row in csv_reader:
+                    container_id = row.get("id")
+                    if unit_type == "lbs":
+                        weight = int(row.get("lbs"))
+                        weight = convert_weight(weight)
+                    else:
+                        weight = int(row.get("kg"))
+
+                    unit = "kg"
+                    insert_into_db(container_id, weight, unit)
+
+        else:
+            return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
+
+        return {"message": "File processed successfully"}, 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-
+    
 
 # http://localhost:5000/session/1619874477.123456
 @app.route("/session/<id>", methods=["GET"])
@@ -174,10 +197,16 @@ def healthcheck():
 
 @app.route('/weight', methods=['GET']) ##DONE
 def get_weight():
-
-    from_time = request.args.get('from',datetime.now().strftime("%Y%m%d") + "000000")
-    to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+    try:
+        from_time = datetime.strptime(request.args.get('from', datetime.now().strftime("%Y%m%d") + "000000"), "%Y%m%d%H%M%S")
+        to_time = datetime.strptime(request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S")), "%Y%m%d%H%M%S")
+    except ValueError:
+        return "Invalid date format. Use YYYYMMDDHHMMSS.", 400
     filter_by = request.args.get('filter', "in,out,none").split(',')
+
+    # Validate that 'from' time is earlier than 'to' time
+    if from_time > to_time :
+        return "The 'from' time must be earlier than the 'to' time.", 400
     
     try:        
         # Construct SQL query
@@ -311,8 +340,6 @@ def info_insert():
 
     # If invalid direction
     return {"Error": "Page Not Found, try different route"}, 404
- 
-
 
 @app.route('/unknown', methods=['GET'])
 def get_unknown():

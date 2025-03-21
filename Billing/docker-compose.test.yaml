@@ -1,0 +1,49 @@
+
+services:
+  billing-test-db:
+    build: ./db/
+    container_name: billing-test-db
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: billdb
+      MYSQL_USER: billing-user
+      MYSQL_PASSWORD: secret
+    networks:
+      - test_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  billing-test-app:
+    build: ./app/
+    container_name: billing-test-app
+    depends_on:
+      - billing-test-db
+    ports: 
+      - "8083:5000"
+    environment:
+        DB_HOST: billing-test-db
+    networks:
+      - test_network
+    volumes:
+      - ./in:/in
+
+  billing-test:
+    build: 
+      context: .
+      dockerfile: tests/Dockerfile
+    container_name: billing-test
+    depends_on: 
+      - billing-test-app
+    networks:
+      - test_network
+  
+
+volumes:
+  mysql-data: 
+
+networks:
+  test_network:
+    external: true
