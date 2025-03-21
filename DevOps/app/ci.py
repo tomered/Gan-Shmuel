@@ -44,7 +44,7 @@ SERVICES_CONFIGURATION = {
 }
 
 
-def check_service_health(compose_res, service, port):
+def check_service_health(compose_res, service, env, port):
     app.logger.info(
         f"Running health check and pytest for `{service}` with port `{port}`")
 
@@ -59,20 +59,29 @@ def check_service_health(compose_res, service, port):
 
         time.sleep(2 ** i)  # Exponential backoff
 
-    app.logger.info(f"Running pytests for {service}")
-    pytest_res = subprocess.run(
-        ["docker", "inspect", f"{service}-test",
-            "--format", "{{.State.ExitCode}}"],
-        capture_output=True, text=True, check=True
-    )
-
-    if compose_res.returncode == 0 and health_check_res.status_code == 200:
-        app.logger.info(f"Tests passed and service {service} is healthy ")
-        service_final_res = True
+    if (env == 'test'):
+        app.logger.info(f"Running pytests for {service}")
+        pytest_res = subprocess.run(
+            ["docker", "inspect", f"{service}-test",
+             "--format", "{{.State.ExitCode}}"],
+            capture_output=True, text=True, check=True
+        )
+        if compose_res.returncode == 0 and health_check_res.status_code == 200 and pytest_res.returncode == 0:
+            app.logger.info(f"Tests passed and service {service} is healthy ")
+            service_final_res = True
+        else:
+            app.logger.info(
+                f"Service {service} is not healthy. compose results: `{compose_res.stderr}` health check results: `{health_check_res.status_code}`")
+            service_final_res = False
     else:
-        app.logger.info(
-            f"Service {service} is not healthy. compose results: `{compose_res.stderr}` health check results: `{health_check_res.status_code}`")
-        service_final_res = False
+        pytest_res = None
+        if compose_res.returncode == 0 and health_check_res.status_code == 200:
+            app.logger.info(f"Tests passed and service {service} is healthy ")
+            service_final_res = True
+        else:
+            app.logger.info(
+                f"Service {service} is not healthy. compose results: `{compose_res.stderr}` health check results: `{health_check_res.status_code}`")
+            service_final_res = False
 
     results = {
         "returncode": compose_res.returncode,
@@ -126,7 +135,7 @@ def manage_env(action, env, branch='main'):
 
             if action == "up":
                 service_health_check_res = check_service_health(
-                    compose_res, service, port)
+                    compose_res, service, env, port)
                 results[service] = service_health_check_res
 
         if action == 'down':
@@ -277,6 +286,7 @@ def webhook():
 def health():
     return jsonify({"status": "success"}), 200
 
+
 @app.route("/metrics")
 def metrics():
     if "application/json" in request.headers.get("Accept", ""):
@@ -289,6 +299,7 @@ def metrics():
 
     # Serve the HTML dashboard
     return Response(HTML_FILE.read_text(), mimetype="text/html")
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
