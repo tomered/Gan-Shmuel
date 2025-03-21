@@ -10,6 +10,9 @@ services:
       MYSQL_PASSWORD: secret
     networks:
       - prod_network
+    volumes:
+      - billing-db-data:/var/lib/mysql
+
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
@@ -30,7 +33,7 @@ services:
       - ./in:/in
 
 volumes:
-  mysql-data: 
+  billing-db-data: 
 
 networks:
   prod_network:
