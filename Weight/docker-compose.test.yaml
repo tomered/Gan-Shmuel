@@ -9,12 +9,30 @@ services:
     container_name: webapp_gs
     volumes:
       - ./app/weight.py:/app/weight.py
-      - ./app/in/:/app/in/
+      - ./app/get_unknown_test.py:/app/get_unknown_test.py
     networks:
       - gsnetwork
     ports:
       - "8082:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "127.0.0.1:5000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 20s
 
+  # test_weight:
+  #   depends_on:
+  #     web_weight:
+  #         condition: service_healthy
+  #   build: ./app/apis_test/
+  #   container_name: weight-test
+  #   volumes:
+  #     - ./app/apis_test/:/app/apis_test/
+  #   networks:
+  #     - gsnetwork
+  #   ports:
+  #     - "8084:5000"
 
   db_weight:
     build: ./db/

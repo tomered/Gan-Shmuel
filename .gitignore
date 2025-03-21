@@ -17,7 +17,9 @@
 ./Weight/db/backup/*
 *.pyc
 __pycache__/
+*__init__.py
 *.pyo
 *.log
 .env
+./Weight/app/apis_test/*
 
