@@ -26,7 +26,7 @@ def home():
 
 
 # http://localhost:5000/item/truck1?from=20230301000000&to=20230302235959
-@app.route("/item/<id>", methods=["GET"])
+@app.route("/item/<id>", methods=["GET"]) ##DONE
 def get_item(id):
     
     try:
@@ -72,7 +72,7 @@ def get_item(id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/batch-weight", methods=["POST"])
+@app.route("/batch-weight", methods=["POST"]) ## DONE do not touch!!
 def containers_insert():
     
     mysql = db.connect_db()
@@ -167,7 +167,7 @@ def containers_insert():
     
 
 # http://localhost:5000/session/1619874477.123456
-@app.route("/session/<id>", methods=["GET"])
+@app.route("/session/<id>", methods=["GET"]) ##DONE
 def get_session(id):
 
     try:
@@ -239,7 +239,7 @@ def get_weight():
     except mysql.connector.Error as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/weight', methods=['POST']) ##DONE
+@app.route('/weight', methods=['POST']) ##Working on fixes
 def info_insert():
     # Ensure correct Content-Type
     if request.content_type != 'application/json':
@@ -271,7 +271,7 @@ def info_insert():
         weight = convert_weight(weight)
 
     # Validate required fields
-    if not direction or weight is None or not truck or not containers:
+    if not direction or not weight or not truck or not containers or not produce:
         return ({"error": "Missing required fields"}), 400
 
     mysql = db.connect_db()
@@ -318,8 +318,10 @@ def info_insert():
         session_id=last_in.get("session")
         try:
             bruto_weight = last_in["bruto"] # Get bruto from last_in
-            truck_tara = int(weight)  # Current truck weight
-            container_weight = db.container_data(containers)  # Weight of containers
+            truck_tara = weight  # Current truck weight
+            container_weight, status_code = db.container_data(containers)  # Weight of containers
+            if status_code == 500:
+                return container_weight
             net_weight = bruto_weight - truck_tara - container_weight
             
         except Exception as e:
@@ -342,18 +344,27 @@ def info_insert():
     elif direction == "none":
         cursor.execute(""" SELECT direction FROM transactions ORDER BY datetime DESC LIMIT 1;""")
         result = cursor.fetchone()
-        if 'in' in result['direction']:
+        if not result:
+            session_id= fetch_session_id()
+            session_id +=1
+            cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
+            mysql.commit()
+            return {"id": session_id, "truck": "na", "bruto": weight}, 200
+        elif 'in' in result['direction']:
             return ("Error, na after in detected"), 500
-        session_id= fetch_session_id()
-        session_id +=1
-        cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
-        mysql.commit()
-        return {"id": session_id, "truck": "na", "bruto": weight, "result":result}, 200
+        else:
+            session_id= fetch_session_id()
+            session_id +=1
+            cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
+            mysql.commit()
+            return {"id": session_id, "truck": "na", "bruto": weight}, 200
+
+
 
     # If invalid direction
     return {"Error": "Page Not Found, try different route"}, 404
 
-@app.route('/unknown', methods=['GET'])
+@app.route('/unknown', methods=['GET']) ##DONE
 def get_unknown():
     
     try:        

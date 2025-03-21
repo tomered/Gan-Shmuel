@@ -21,7 +21,7 @@ def container_data(containers):
     for container in converted_list:
         # Fetch container weight from the database
         try:
-            cursor.execute("SELECT weight FROM containers_registered WHERE container_id = %s", (container, ))
+            cursor.execute("SELECT weight FROM containers_registered WHERE container_id = %s", (container,))
             result = cursor.fetchone()
             sum+=result["weight"]
         except:
@@ -30,6 +30,6 @@ def container_data(containers):
     cursor.close()
     mysql.close()
 
-    return sum
+    return sum, 200
 
 
