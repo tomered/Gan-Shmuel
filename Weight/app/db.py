@@ -21,8 +21,10 @@ def container_data(containers):
     for container in converted_list:
         # Fetch container weight from the database
         try:
-            cursor.execute("SELECT weight FROM containers_registered WHERE container_id = %s", (container,))
+            cursor.execute("""SELECT weight FROM containers_registered WHERE container_id = %s LIMIT 1;""", (container,))
             result = cursor.fetchone()
+            if result is None:
+                continue
             sum+=result["weight"]
         except:
             return (f"No data available for Container: {container} "), 500

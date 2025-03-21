@@ -321,8 +321,8 @@ def info_insert():
             truck_tara = weight  # Current truck weight
             container_weight, status_code = db.container_data(containers)  # Weight of containers
             if status_code == 500:
-                return container_weight
-            net_weight = bruto_weight - truck_tara - container_weight
+                return {"Error": container_weight}, 500
+            net_weight = bruto_weight - int(truck_tara) - int(container_weight)
             
         except Exception as e:
             return {"error": f"Failed to calculate net weight: {e}"}, 500
