@@ -270,8 +270,14 @@ def info_insert():
         weight = convert_weight(weight)
 
     # Validate required fields
-    if not direction or weight is None or not truck or not containers:
-        return ({"error": "Missing required fields"}), 400
+    required_fields = [direction, weight, produce, unit, truck, containers]
+    if not all(required_fields):
+        return {"error": "Missing required fields"}, 400
+
+    
+    if unit.lower() not in ("kg", "lbs"):
+        return {"error": "unit is just KG or lbs"}, 400
+
 
     mysql = db.connect_db()
     cursor = mysql.cursor(dictionary=True)
