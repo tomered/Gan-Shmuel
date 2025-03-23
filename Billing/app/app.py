@@ -13,7 +13,7 @@ def get_db_connection():
 
     try:
         conn = mysql.connector.connect(
-            host="billing-db",
+            host=os.environ["DB_HOST"],
             user="root",
             password="secret",
             database="billdb",
