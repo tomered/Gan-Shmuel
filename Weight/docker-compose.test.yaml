@@ -2,8 +2,10 @@
 #Main Service
 services:
   weight-test-web:
+    environment:
+        DB_HOST: weight-test-db
     depends_on:
-      db_weight:
+      weight-test-db:
           condition: service_healthy
     build: ./app/
     container_name: weight-test-web
@@ -12,25 +14,27 @@ services:
     networks:
       - test_network
     ports:
-      - "8082:5000"
+      - "8084:5000"
 
 
 #Test Container
   test_weight:
+    build:
+        context: .
+        dockerfile: ./app/apis_test/Dockerfile
+    environment:
+      DB_HOST: weight-test-db
     depends_on:
-      weight-test-web:
+      weight-test-db:
           condition: service_healthy
-    build: ./app/apis_test/
     container_name: weight-test
     networks:
       - test_network
-    ports:
-      - "8084:5000"
 
 #DB Container
   weight-test-db:
     build: ./db/
-    container_name: db_gs
+    container_name: weight-test-db
     networks:
       - test_network
     volumes:
