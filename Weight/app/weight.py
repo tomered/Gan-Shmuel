@@ -12,6 +12,7 @@ app = Flask(__name__)
 
 mydb = db.connect_db()
 
+
 cursor = mydb.cursor(dictionary=True, buffered=True)
 
 # Converts LBS to kg, Returns int per containers_registered table.

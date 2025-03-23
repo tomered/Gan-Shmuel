@@ -7,6 +7,8 @@ services:
           condition: service_healthy
     build: ./app/
     container_name: webapp_gs
+    environment:
+      DB_HOST: db_gs
     volumes:
       - ./app/weight.py:/app/weight.py
       - ./app/in/:/app/in/
