@@ -2,7 +2,6 @@ import os
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
-import datetime
 import pandas as pd
 import datetime
 import requests

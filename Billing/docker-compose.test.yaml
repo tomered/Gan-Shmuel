@@ -20,7 +20,8 @@ services:
     build: ./app/
     container_name: billing-test-app
     depends_on:
-      - billing-test-db
+      billing-test-db:
+        condition: service_healthy
     ports: 
       - "8083:5000"
     environment:
