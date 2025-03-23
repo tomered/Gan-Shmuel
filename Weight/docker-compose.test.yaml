@@ -1,0 +1,53 @@
+
+#Main Service
+services:
+  weight-test-web:
+    environment:
+        DB_HOST: weight-test-db
+    depends_on:
+      weight-test-db:
+          condition: service_healthy
+    build: ./app/
+    container_name: weight-test-web
+    volumes:
+      - ./in/:/app/in/
+    networks:
+      - test_network
+    ports:
+      - "8084:5000"
+
+
+#Test Container
+  test_weight:
+    build:
+        context: .
+        dockerfile: ./app/apis_test/Dockerfile
+    environment:
+      DB_HOST: weight-test-db
+    depends_on:
+      weight-test-db:
+          condition: service_healthy
+    container_name: weight-test
+    networks:
+      - test_network
+
+#DB Container
+  weight-test-db:
+    build: ./db/
+    container_name: weight-test-db
+    networks:
+      - test_network
+    volumes:
+      - gsdata:/var/lib/mysql ##note -this is named volume!!
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  test_network:
+    external: true
+
+volumes:
+  gsdata: {}
