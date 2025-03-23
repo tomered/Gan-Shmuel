@@ -11,6 +11,8 @@ services:
       - prod_network 
     ports:
       - "8082:5000"
+    volumes:
+      - ./in/:/app/in/
 
 
 
