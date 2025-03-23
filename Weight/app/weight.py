@@ -159,9 +159,9 @@ def containers_insert():
             return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
         
         if warnings:
-            return {"message": "File processed with warnings", "Warning":warnings, "weight":weight}, 200
+            return {"message": "File processed with warnings", "Warning":warnings}, 200
         else:
-            return {"message": "File processed successfully", "weight":weight}, 200
+            return {"message": "File processed successfully"}, 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
