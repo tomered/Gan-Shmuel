@@ -187,6 +187,8 @@ def check_yaml_path(service):
         if not prod_path or not os.path.isfile(prod_path):
             app.logger.error(
                 f"YAML file for `{service_to_check}` in `prod` environment is missing")
+            send_slack_message(
+                "❌ YAML file for `{service_to_check}` in `prod` environment is missing")
             return False
 
         # Check for 'test' environment
@@ -196,6 +198,8 @@ def check_yaml_path(service):
         if not test_path or not os.path.isfile(test_path):
             app.logger.error(
                 f"YAML file for `{service_to_check}` in `test` environment is missing")
+            send_slack_message(
+                "❌ YAML file for `{service_to_check}` in `test` environment is missing")
             return False
 
     return True
@@ -230,7 +234,8 @@ def ci_pipeline(payload):
 
         app.logger.info(
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
-
+        send_slack_message(
+            f"*CI triggered for branch `{branch}`*\n`Pusher: {pusher_name}`\nCommit: `{commit_hash}`")
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], check=True)
         subprocess.run(
@@ -254,6 +259,8 @@ def ci_pipeline(payload):
                 result_down = manage_env(action='down', env='prod')
                 result_up = manage_env(action='up', env='prod')
                 app.logger.info("Finished deploying prod")
+                send_slack_message(
+                    f"✅ *Finished deploying app to Prod environment*")
 
             else:
                 app.logger.info("Branch is not main. Not deploying app")
