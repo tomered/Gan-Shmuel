@@ -142,7 +142,7 @@ def add_rate():
             raise FileNotFoundError (f"Error: The file '{filepath}' does not exist")
 
         # Read data from excel file in /in dir
-        data_frame = pd.read_excel(f"Billing/in/{filename}.xlsx", engine = "openpyxl")
+        data_frame = pd.read_excel(f"in/{filename}.xlsx", engine = "openpyxl")
         file_data = data_frame.to_records(index=False).tolist()
 
         # DB connection

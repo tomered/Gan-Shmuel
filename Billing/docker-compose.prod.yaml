@@ -30,7 +30,7 @@ services:
     networks:
       - prod_network
     volumes:
-      - ./in:/in
+      - /Billing/in:/in
 
 volumes:
   billing-db-data: 
