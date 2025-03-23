@@ -75,13 +75,14 @@ def check_service_health(compose_res, service, env, port, branch):
                 f"❌ *Pytest failed\nservice: {service}\nEnvironment: {env}\nBranch: {branch}\nError: {pytest_res.stderr}*")
         if compose_res.returncode == 0 and health_check_res.status_code == 200 and pytest_res.returncode == 0:
             app.logger.info(f"Tests passed and service {service} is healthy ")
+            pytest_final_res = pytest_res.stdout.strip()
             service_final_res = True
         else:
             app.logger.info(
                 f"Service {service} is not healthy. compose results: `{compose_res.stderr}` health check results: `{health_check_res.status_code}`")
             service_final_res = False
     else:
-        pytest_res = None
+        pytest_final_res = None
         if compose_res.returncode == 0 and health_check_res.status_code == 200:
             app.logger.info(f"Tests passed and service {service} is healthy ")
             service_final_res = True
@@ -95,7 +96,7 @@ def check_service_health(compose_res, service, env, port, branch):
         "stdout": compose_res.stdout.strip(),
         "stderr": compose_res.stderr.strip(),
         "health_check": health_check_res.status_code,
-        "pytest": pytest_res.stdout.strip(),
+        "pytest": pytest_final_res,
         "service_final_res": service_final_res,
     }
 
@@ -242,7 +243,7 @@ def ci_pipeline(payload):
         app.logger.info(
             f"CI triggered for branch: {branch} by {pusher_name} ({pusher_email})")
         send_slack_message(
-            f"*CI triggered for branch `{branch}`*\n`Pusher: {pusher_name}`\nCommit: `{commit_hash}`")
+            f"*--------------------CI triggered for branch `{branch}`*\n`Pusher: {pusher_name}`\nCommit: `{commit_hash}`--------------------")
         app.logger.info(f"Pulling latest code for '{branch}'...")
         subprocess.run(["git", "checkout", branch], check=True)
         subprocess.run(
