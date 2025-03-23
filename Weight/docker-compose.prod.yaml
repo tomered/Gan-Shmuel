@@ -7,10 +7,14 @@ services:
           condition: service_healthy
     build: ./app/
     container_name: webapp_gs
+    environment:
+      DB_HOST: db_gs
     networks:
       - prod_network 
     ports:
       - "8082:5000"
+    volumes:
+      - ./in/:/app/in/
 
 
 

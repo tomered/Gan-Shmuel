@@ -12,6 +12,7 @@ app = Flask(__name__)
 
 mydb = db.connect_db()
 
+
 cursor = mydb.cursor(dictionary=True, buffered=True)
 
 # Converts LBS to kg, Returns int per containers_registered table.
@@ -26,12 +27,19 @@ def home():
 
 
 # http://localhost:5000/item/truck1?from=20230301000000&to=20230302235959
-@app.route("/item/<id>", methods=["GET"])
+@app.route("/item/<id>", methods=["GET"]) ##DONE
 def get_item(id):
+    
     try:
-       
-        from_time = request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000")
-        to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+        from_time = datetime.strptime(request.args.get('from', datetime.now().replace(day=1).strftime("%Y%m%d") + "000000"), "%Y%m%d%H%M%S")
+        to_time = datetime.strptime(request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S")), "%Y%m%d%H%M%S")
+    except ValueError:
+        return "Invalid date format. Use YYYYMMDDHHMMSS.", 400
+
+    try:
+        # Validate that 'from' time is earlier than 'to' time
+        if from_time > to_time :
+            return "The 'from' time must be earlier than the 'to' time.", 400
 
 
         cursor.execute("SELECT truck FROM transactions WHERE truck = %s", (id,))
@@ -65,15 +73,8 @@ def get_item(id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/batch-weight", methods=["POST"])
+@app.route("/batch-weight", methods=["POST"]) ## DONE do not touch!!
 def containers_insert():
-    file = request.files["file"]
-    if not file:
-        return {"error": "No file part in the request"}, 400
-    allowed_extensions = {".csv", ".json"}
-    file_extension = os.path.splitext(file.filename)[1].lower()  # Get the file extension in lowercase
-    if file_extension not in allowed_extensions:
-        return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
     
     mysql = db.connect_db()
     cursor = mysql.cursor(dictionary=True)
@@ -89,50 +90,85 @@ def containers_insert():
 
             mysql.commit()
         except Exception as e:
-            print(f"Error inserting into database: {str(e)}")
-
+            print(f"Error inserting into database: {str(e)}")   
 
     try:
-        # Process CSV files
-        if file_extension == ".csv":
-            csv_reader = csv.DictReader(TextIOWrapper(file.stream, encoding="utf-8"))
-            headers = next(csv_reader)  # Extract the first line as headers
-            unit_type = "lbs" if "lbs" in headers else 'kg'
-            for row in csv_reader:
-                container_id = row.get("id")
-                if unit_type == "lbs":
-                    weight = int(row.get("lbs"))
-                    weight=convert_weight(weight)
-                else:
-                    weight = int(row.get("kg"))
-                unit='kg'
-                insert_into_db(container_id, weight, unit)
+        filename = request.get_json().get("file")
+        if not filename:
+            return {"error": "No file part in the request"}, 400
+
+        file_path = os.path.join("./in/", filename)
+
+        if not os.path.isfile(file_path):
+            return {"error": "File not found"}, 404
+
+        file_extension = os.path.splitext(file_path)[1].lower()
 
 
         # Process JSON files
-        elif file_extension == ".json":
-            data = json.load(file.stream)
+        if file_extension == '.json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
             for entry in data:
                 container_id = entry.get("id")
-                weight = int(entry.get("weight"))
+                if not container_id:
+                    return {"error":f"Missing container ID, cannot continue"}, 400
+                weight = entry.get("weight")
                 unit = entry.get("unit")
+                
                 if unit == "lbs":
-                    weight=convert_weight(weight)
-                    unit="kg"
-                # Insert each entry into the database
+                    weight = convert_weight(weight)
+                    unit = "kg"
+                
                 insert_into_db(container_id, weight, unit)
 
-        # file.save(f"./in/{file.filename}")  # Save file to an 'in' folder
-        return jsonify({"message": "File processed and data inserted successfully!"}), 200
-    
+
+        # Process CSV files
+        elif file_extension == '.csv':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                csv_reader = csv.DictReader(f)
+                
+                # Detect unit type from headers
+                unit_type = "lbs" if "lbs" in csv_reader.fieldnames else "kg"
+                row_num = 0
+                warnings=[]
+                for row in csv_reader:
+                    container_id = row.get("id")
+                    if not container_id:
+                        warnings.append(f"Missing Container ID at line {row_num}") 
+                    elif unit_type == "lbs":
+                        weight = row.get("lbs")
+                        if not weight:
+                            weight = None
+                            insert_into_db(container_id, weight, unit)
+                        else:
+                            weight = convert_weight(weight)
+                            unit="kg"
+                            insert_into_db(container_id, weight, unit)
+                    else:
+                        weight = row.get("kg")
+                        if not weight:
+                            weight = None
+                        
+                        insert_into_db(container_id, weight, unit_type)
+                    row_num+=1
+             
+
+        else:
+            return {"error": "Unsupported file type. Only CSV and JSON are allowed."}, 400
+        
+        if warnings:
+            return {"message": "File processed with warnings", "Warning":warnings, "weight":weight}, 200
+        else:
+            return {"message": "File processed successfully", "weight":weight}, 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-
+    
 
 # http://localhost:5000/session/1619874477.123456
-@app.route("/session/<id>", methods=["GET"])
+@app.route("/session/<id>", methods=["GET"]) ##DONE
 def get_session(id):
 
     try:
@@ -174,10 +210,16 @@ def healthcheck():
 
 @app.route('/weight', methods=['GET']) ##DONE
 def get_weight():
-
-    from_time = request.args.get('from',datetime.now().strftime("%Y%m%d") + "000000")
-    to_time = request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S"))
+    try:
+        from_time = datetime.strptime(request.args.get('from', datetime.now().strftime("%Y%m%d") + "000000"), "%Y%m%d%H%M%S")
+        to_time = datetime.strptime(request.args.get('to', datetime.now().strftime("%Y%m%d%H%M%S")), "%Y%m%d%H%M%S")
+    except ValueError:
+        return "Invalid date format. Use YYYYMMDDHHMMSS.", 400
     filter_by = request.args.get('filter', "in,out,none").split(',')
+
+    # Validate that 'from' time is earlier than 'to' time
+    if from_time > to_time :
+        return "The 'from' time must be earlier than the 'to' time.", 400
     
     try:        
         # Construct SQL query
@@ -198,7 +240,7 @@ def get_weight():
     except mysql.connector.Error as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/weight', methods=['POST']) ##DONE
+@app.route('/weight', methods=['POST']) ##Working on fixes
 def info_insert():
     # Ensure correct Content-Type
     if request.content_type != 'application/json':
@@ -230,7 +272,7 @@ def info_insert():
         weight = convert_weight(weight)
 
     # Validate required fields
-    if not direction or weight is None or not truck or not containers:
+    if not direction or not weight or not truck or not containers or not produce:
         return ({"error": "Missing required fields"}), 400
 
     mysql = db.connect_db()
@@ -277,9 +319,11 @@ def info_insert():
         session_id=last_in.get("session")
         try:
             bruto_weight = last_in["bruto"] # Get bruto from last_in
-            truck_tara = int(weight)  # Current truck weight
-            container_weight = db.container_data(containers)  # Weight of containers
-            net_weight = bruto_weight - truck_tara - container_weight
+            truck_tara = weight  # Current truck weight
+            container_weight, status_code = db.container_data(containers)  # Weight of containers
+            if status_code == 500:
+                return {"Error": container_weight}, 500
+            net_weight = bruto_weight - int(truck_tara) - int(container_weight)
             
         except Exception as e:
             return {"error": f"Failed to calculate net weight: {e}"}, 500
@@ -301,20 +345,27 @@ def info_insert():
     elif direction == "none":
         cursor.execute(""" SELECT direction FROM transactions ORDER BY datetime DESC LIMIT 1;""")
         result = cursor.fetchone()
-        if 'in' in result['direction']:
+        if not result:
+            session_id= fetch_session_id()
+            session_id +=1
+            cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
+            mysql.commit()
+            return {"id": session_id, "truck": "na", "bruto": weight}, 200
+        elif 'in' in result['direction']:
             return ("Error, na after in detected"), 500
-        session_id= fetch_session_id()
-        session_id +=1
-        cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
-        mysql.commit()
-        return {"id": session_id, "truck": "na", "bruto": weight, "result":result}, 200
+        else:
+            session_id= fetch_session_id()
+            session_id +=1
+            cursor.execute("INSERT INTO transactions (session, direction, datetime) VALUES (%s, %s, %s)", (session_id, direction, current_date))
+            mysql.commit()
+            return {"id": session_id, "truck": "na", "bruto": weight}, 200
+
+
 
     # If invalid direction
     return {"Error": "Page Not Found, try different route"}, 404
- 
 
-
-@app.route('/unknown', methods=['GET'])
+@app.route('/unknown', methods=['GET']) ##DONE
 def get_unknown():
     
     try:        

@@ -20,4 +20,5 @@ __pycache__/
 *.pyo
 *.log
 .env
+./Weight/app/apis_test/*
 

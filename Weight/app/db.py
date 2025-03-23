@@ -1,15 +1,17 @@
 import random
 from flask import g
 import mysql.connector
+import os
 
 def connect_db():
     mydb = mysql.connector.connect(
-        host='db_gs',
+        host=os.environ['DB_HOST'],
         user='root',
         password='root',
         database='weight'
     )
     return mydb
+
 
 def container_data(containers):
     mysql = connect_db()
@@ -21,8 +23,10 @@ def container_data(containers):
     for container in converted_list:
         # Fetch container weight from the database
         try:
-            cursor.execute("SELECT weight FROM containers_registered WHERE container_id = %s", (container, ))
+            cursor.execute("""SELECT weight FROM containers_registered WHERE container_id = %s LIMIT 1;""", (container,))
             result = cursor.fetchone()
+            if result is None:
+                continue
             sum+=result["weight"]
         except:
             return (f"No data available for Container: {container} "), 500
@@ -30,6 +34,6 @@ def container_data(containers):
     cursor.close()
     mysql.close()
 
-    return sum
+    return sum, 200
 
 
