@@ -18,11 +18,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Clone the repository inside the container
 RUN git clone https://github.com/tomered/Gan-Shmuel.git /Gan-Shmuel
-# RUN apt update && apt install -y --no-install-recommends docker.io \
-#     git && \
-#     pip install  --no-cache-dir -r requirements.txt && \
-#     rm -rf /var/lib/apt/lists/*
-
 
 COPY ci.py logger_config.py index.html ./
 
