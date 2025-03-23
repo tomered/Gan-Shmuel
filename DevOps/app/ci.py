@@ -14,9 +14,9 @@ load_dotenv()  # Load .env file if it exists
 
 app = Flask(__name__)
 setup_logger(app)
-HTML_FILE = Path(__file__).parent / "index.html"
 
 # CONFIG
+HTML_FILE = Path(__file__).parent / "index.html"
 HOST_IP = '43.205.160.125'
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 SERVICES_CONFIGURATION = {
@@ -44,7 +44,7 @@ SERVICES_CONFIGURATION = {
 }
 
 
-def check_service_health(compose_res, service, env, port):
+def check_service_health(compose_res, service, env, port, branch):
     app.logger.info(
         f"Running health check and pytest for `{service}` with port `{port}`")
 
@@ -55,9 +55,13 @@ def check_service_health(compose_res, service, env, port):
             if health_check_res.status_code == 200:
                 break  # Success, exit loop
         except requests.RequestException as e:
-            app.logger.info(f"Connection failed, retrying... ({i+1}/5)")
+            app.logger.info(f"Connection failed, retrying... ({i+1}/10)")
 
         time.sleep(2 ** i)  # Exponential backoff
+
+    if health_check_res.status_code != 200:
+        send_slack_message(
+            f"❌ *Health check failed\nservice: {service}\nEnvironment: {env}\nBranch: {branch}*")
 
     if (env == 'test'):
         app.logger.info(f"Running pytests for {service}")
@@ -66,6 +70,9 @@ def check_service_health(compose_res, service, env, port):
              "--format", "{{.State.ExitCode}}"],
             capture_output=True, text=True, check=True
         )
+        if pytest_res.returncode != 0:
+            send_slack_message(
+                f"❌ *Pytest failed\nservice: {service}\nEnvironment: {env}\nBranch: {branch}\nError: {pytest_res.stderr}*")
         if compose_res.returncode == 0 and health_check_res.status_code == 200 and pytest_res.returncode == 0:
             app.logger.info(f"Tests passed and service {service} is healthy ")
             service_final_res = True
@@ -135,7 +142,7 @@ def manage_env(action, env, branch='main'):
 
             if action == "up":
                 service_health_check_res = check_service_health(
-                    compose_res, service, env, port)
+                    compose_res, service, env, port, branch)
                 results[service] = service_health_check_res
 
         if action == 'down':
@@ -252,7 +259,7 @@ def ci_pipeline(payload):
 
         if result[0]:
             send_slack_message(
-                f"✅ *CI unit tests passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
+                f"✅ *CI tests passed for `{branch}`*\nPusher: `{pusher_name}`\nCommit: `{commit_hash}`\n")
             manage_env('down', 'prod', branch)
 
             if branch.lower() == 'main':
