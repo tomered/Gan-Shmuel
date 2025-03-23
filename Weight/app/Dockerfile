@@ -8,7 +8,7 @@ COPY ./requierments.txt /app/requierments.txt
 WORKDIR /app/
 RUN pip install -r requierments.txt
 COPY ./weight.py ./db.py ./
-COPY ./in/ ./in/
+COPY ./in ./in
 
 
 
