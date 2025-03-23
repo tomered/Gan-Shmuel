@@ -1,44 +1,38 @@
 
-
+#Main Service
 services:
-  web_weight:
+  weight-test-web:
     depends_on:
       db_weight:
           condition: service_healthy
     build: ./app/
-    container_name: webapp_gs
+    container_name: weight-test-web
     volumes:
-      - ./app/weight.py:/app/weight.py
-      - ./app/get_unknown_test.py:/app/get_unknown_test.py
+      - ./in/:/app/in/
     networks:
-      - gsnetwork
+      - test_network
     ports:
       - "8082:5000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "127.0.0.1:5000/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 2
-      start_period: 20s
 
-  # test_weight:
-  #   depends_on:
-  #     web_weight:
-  #         condition: service_healthy
-  #   build: ./app/apis_test/
-  #   container_name: weight-test
-  #   volumes:
-  #     - ./app/apis_test/:/app/apis_test/
-  #   networks:
-  #     - gsnetwork
-  #   ports:
-  #     - "8084:5000"
 
-  db_weight:
+#Test Container
+  test_weight:
+    depends_on:
+      weight-test-web:
+          condition: service_healthy
+    build: ./app/apis_test/
+    container_name: weight-test
+    networks:
+      - test_network
+    ports:
+      - "8084:5000"
+
+#DB Container
+  weight-test-db:
     build: ./db/
     container_name: db_gs
     networks:
-      - gsnetwork
+      - test_network
     volumes:
       - gsdata:/var/lib/mysql ##note -this is named volume!!
     healthcheck:
@@ -48,7 +42,8 @@ services:
       retries: 5
 
 networks:
-  gsnetwork:
+  test_network:
+    external: true
 
 volumes:
   gsdata: {}
